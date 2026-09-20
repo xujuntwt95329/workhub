@@ -2722,7 +2722,7 @@ code,
   align-items: center;
   gap: 10px;
   background: #294938;
-  color: #676b61;
+  color: #ffffff;
   box-shadow: 0 8px 30px #1d3b2530;
   padding: 14px 17px;
   border-radius: 10px;
@@ -2740,7 +2740,7 @@ code,
 }
 .toast-error {
   background: #845b4e;
-  color: #6e6761;
+  color: #ffffff;
 }
 .boot {
   min-height: 100vh;
