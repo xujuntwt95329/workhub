@@ -1,0 +1,46 @@
+name: Quality
+on: [push, pull_request]
+jobs:
+  unit-and-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-reports
+          path: |
+            coverage/
+            playwright-report/
+            artifacts/
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env: {POSTGRES_DB: workhub_test, POSTGRES_USER: workhub, POSTGRES_PASSWORD: test-only-password}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U workhub -d workhub_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://workhub:test-only-password@localhost:5432/workhub_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: npm test -- tests/service.test.ts tests/api.test.ts tests/assistant.test.ts tests/mcp.test.ts
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t workhub:test .

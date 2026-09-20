@@ -1,0 +1,7 @@
+{
+  "name": "workhub",
+  "version": "0.1.1",
+  "description": "在 WorkHub 中协作完成需求、设计、开发与质量追溯，保留人工评审和版本证据。",
+  "author": { "name": "WorkHub" },
+  "keywords": ["workhub", "engineering", "requirements", "traceability"]
+}

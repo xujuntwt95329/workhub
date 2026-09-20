@@ -1,0 +1,12 @@
+node_modules
+.npm-cache
+.data
+.env
+.git
+coverage
+artifacts
+test-results
+playwright-report
+dist
+backups
+*.log

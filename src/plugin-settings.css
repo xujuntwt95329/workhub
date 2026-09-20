@@ -1,0 +1,357 @@
+.plugin-settings {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.plugin-settings .plugin-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: linear-gradient(110deg, #fbf3ec, #fffaf6 66%, #fff);
+  border-color: #eee1d6;
+}
+.plugin-mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  background: #f1ded0;
+  border-radius: 16px;
+  color: #925c3d;
+}
+.plugin-kicker {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.6px;
+  color: #8a583d;
+  margin-bottom: 5px;
+}
+.plugin-kicker span {
+  letter-spacing: 0;
+  margin-left: 8px;
+  color: #76675f;
+  font-weight: 400;
+}
+.plugin-hero h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: #523e30;
+  margin-bottom: 5px;
+}
+.plugin-hero p {
+  font-size: 12px;
+  color: #786659;
+}
+.plugin-count {
+  white-space: nowrap;
+  font-size: 11px;
+  color: #83563b;
+  padding: 6px 10px;
+  background: #fffaf6;
+  border: 1px solid #e9dace;
+  border-radius: 20px;
+}
+.plugin-grid {
+  display: grid;
+  grid-template-columns: minmax(290px, 1fr) minmax(290px, 1.05fr);
+  gap: 16px;
+}
+.plugin-settings h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.plugin-config,
+.plugin-skills,
+.plugin-install {
+  padding: 22px;
+  min-width: 0;
+}
+.plugin-config > .muted {
+  font-size: 12px;
+  margin-top: 5px;
+}
+.plugin-target {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0;
+}
+.plugin-target button {
+  display: flex;
+  flex: 1;
+  gap: 9px;
+  align-items: center;
+  text-align: left;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e3e8e5;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.plugin-target button[aria-pressed="true"] {
+  border-color: #467f69;
+  background: #f1f7f4;
+  color: #245b46;
+  box-shadow: 0 0 0 1px #467f69;
+}
+.plugin-target small {
+  display: block;
+  color: #5d6a62;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.plugin-field {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 14px;
+}
+.plugin-field input,
+.plugin-field select {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.plugin-hint {
+  font-size: 11px;
+  color: #69736d;
+  line-height: 1.7;
+  margin: 7px 0 0;
+}
+.plugin-hint a {
+  color: var(--green);
+  text-decoration: underline;
+}
+.plugin-config > .button {
+  width: 100%;
+  justify-content: center;
+  margin-top: 17px;
+}
+.plugin-security {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+}
+.plugin-validation {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #994626;
+  background: #fff6ef;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 12px;
+}
+.plugin-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 13px;
+}
+.plugin-section-heading > span,
+.plugin-section-heading a {
+  font-size: 11px;
+}
+.plugin-section-heading a {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--green);
+  white-space: nowrap;
+}
+.plugin-skills {
+  display: flex;
+  flex-direction: column;
+}
+.plugin-skill {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 0;
+  border-bottom: 1px solid #eef0ee;
+}
+.plugin-skill:last-child {
+  border: 0;
+}
+.plugin-skill-index {
+  font-size: 10px;
+  color: #657268;
+  font-variant-numeric: tabular-nums;
+}
+.plugin-skill > div {
+  flex: 1;
+}
+.plugin-skill strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.plugin-skill p {
+  font-size: 11px;
+  color: #6a756e;
+  line-height: 1.6;
+  margin-top: 3px;
+}
+.plugin-skill > code {
+  font-size: 10px;
+  color: #62746a;
+  background: #f4f7f5;
+  padding: 3px 5px;
+  border-radius: 4px;
+}
+.plugin-skill-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  color: #69776d;
+  font-size: 11px;
+}
+.plugin-steps {
+  list-style: none;
+  counter-reset: install;
+  padding: 0;
+  margin: 20px 0 0;
+  display: grid;
+  gap: 19px;
+}
+.plugin-steps li {
+  display: flex;
+  gap: 13px;
+  counter-increment: install;
+}
+.plugin-steps li::before {
+  content: counter(install);
+  display: grid;
+  place-items: center;
+  background: #eef4f0;
+  color: #4c715d;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.plugin-steps li > div {
+  flex: 1;
+  min-width: 0;
+}
+.plugin-steps strong {
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 23px;
+}
+.plugin-steps p {
+  font-size: 12px;
+  color: #65726a;
+  line-height: 1.8;
+  margin: 4px 0 8px;
+}
+.plugin-command {
+  display: flex;
+  align-items: flex-start;
+  background: #f5f7f5;
+  border: 1px solid #e7ebe7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  gap: 12px;
+}
+.plugin-command pre {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #3f594a;
+}
+.plugin-command .icon-button {
+  flex-shrink: 0;
+}
+.plugin-shell {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.plugin-shell select {
+  font-size: 11px;
+  padding: 4px 8px;
+  width: auto;
+}
+.plugin-example {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background: #fbf8f3;
+  padding: 11px 13px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #795d3c;
+}
+.plugin-example span {
+  flex: 1;
+}
+.plugin-example code {
+  font-size: 11px;
+}
+.plugin-faq {
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 15px;
+  font-size: 12px;
+  color: #5b6e61;
+}
+.plugin-faq summary {
+  cursor: pointer;
+}
+.plugin-faq p {
+  font-size: 11px;
+  line-height: 1.9;
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1150px) {
+  .plugin-grid {
+    grid-template-columns: 1fr;
+  }
+  .plugin-skill-footer {
+    margin-top: 0;
+  }
+}
+@media (max-width: 600px) {
+  .plugin-hero {
+    padding: 18px;
+    gap: 12px;
+  }
+  .plugin-count {
+    display: none;
+  }
+  .plugin-hero h2 {
+    font-size: 16px;
+  }
+  .plugin-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .plugin-config,
+  .plugin-skills,
+  .plugin-install {
+    padding: 17px;
+  }
+  .plugin-example {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .plugin-example svg {
+    display: none;
+  }
+  .plugin-skill > code {
+    font-size: 9px;
+  }
+}

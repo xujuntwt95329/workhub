@@ -1,0 +1,58 @@
+name: workhub
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: workhub
+      POSTGRES_USER: workhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workhub -d workhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.data:uid=1000,gid=1000,mode=0700
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL in .env}
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: workhub
+      PGUSER: workhub
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      DATABASE_URL: postgresql://db/workhub
+      KEY_ENCRYPTION_KEY: ${KEY_ENCRYPTION_KEY:?Set KEY_ENCRYPTION_KEY}
+      SETUP_TOKEN: ${SETUP_TOKEN:?Set SETUP_TOKEN}
+      LLM_ALLOWED_ORIGINS: ${LLM_ALLOWED_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
