@@ -39,7 +39,7 @@ npm run test:e2e
 
 ## 服务器部署
 
-需要 Docker Compose、指向服务器的域名，并开放 80/443。组合为 **Caddy HTTPS → WorkHub → PostgreSQL 17**，数据库和应用没有直接暴露公网端口。
+需要 Docker Compose，并允许访问服务器的 TCP 80/443。公网访问使用指向服务器的域名；局域网也可直接使用服务器 IP，证书配置见下文。组合为 **Caddy HTTPS → WorkHub → PostgreSQL 17**，数据库和应用没有直接暴露宿主机端口。
 
 1. 上传项目，复制 `.env.example` 为 `.env`。
 2. 设置一致的 `DOMAIN` 与 `PUBLIC_URL`，例如 `workhub.example.com` 和 `https://workhub.example.com`，URL 不带末尾斜杠。
@@ -52,11 +52,48 @@ docker compose ps
 docker compose logs -f app
 ```
 
-5. 打开自己的域名，用 `.env` 中的 `SETUP_TOKEN` 初始化账户。正式使用建议不载入示例。
+5. 在浏览器打开 `.env` 中的 `PUBLIC_URL`，用 `SETUP_TOKEN` 初始化账户。正式使用建议不载入示例。
+
+浏览器入口是 HTTPS 443（地址中可以省略端口），HTTP 80 自动跳转 HTTPS。`3001` 仅供容器内部通信，`5173` 仅用于本地开发，不能作为 Compose 部署的访问端口。
 
 Caddy 管理 HTTPS 证书，PostgreSQL 使用持久化卷。生产模式强制要求数据库、加密主密钥、初始化密钥和 HTTPS 地址；Cookie 使用 HttpOnly、Secure、SameSite=Lax。
 
 也可独立运行：设置 `DATABASE_URL`、`PUBLIC_URL`、`KEY_ENCRYPTION_KEY`、`SETUP_TOKEN`、`NODE_ENV=production` 后执行 `npm run build && npm start`，放在 HTTPS 反向代理之后。
+
+### 局域网 IP 访问
+
+例如，服务器 IP 为 `192.168.1.100` 时，`.env` 中填写以下纯文本（替换为实际 IP，不要使用 Markdown 链接）：
+
+```dotenv
+DOMAIN=192.168.1.100
+PUBLIC_URL=https://192.168.1.100
+```
+
+运行 `docker compose up -d` 应用环境变量变更，从同一局域网或可访问该网络的 VPN 打开 `https://192.168.1.100`。Caddy 会为私有 IP 使用本地 CA 签发证书，需要在每台访问设备上信任该 CA。仓库中的 `default_sni` 配置用于客户端按 IP 访问、不发送 TLS 站点名称时选择正确证书，避免 Docker 网络地址与宿主机地址不同导致握手失败。
+
+如果更新前已经启动过代理，拉取新配置后重建代理容器以重新读取挂载文件：
+
+```sh
+docker compose up -d --force-recreate proxy
+```
+
+在服务器项目目录导出 Caddy 的根证书：
+
+```sh
+docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ./workhub-root.crt
+```
+
+通过可信方式将 `workhub-root.crt` 复制到访问设备，导入系统或浏览器的受信任根证书存储。Windows 可双击证书，选择“安装证书 → 当前用户 → 将所有证书放入下列存储 → 受信任的根证书颁发机构”；其他系统或使用独立证书存储的浏览器按其证书管理界面导入。重启浏览器后再次访问。只需复制 `root.crt`，不要复制或分发 CA 私钥。参见 [Caddy Docker 本地 HTTPS 说明](https://caddyserver.com/docs/running#local-https-with-docker)。
+
+访问失败时，在服务器项目目录执行：
+
+```sh
+docker compose ps -a
+docker compose logs --tail=80 app proxy
+curl -vk --connect-timeout 5 --max-time 10 https://192.168.1.100/health
+```
+
+将测试地址替换为实际服务器地址。`-k` 仅用于健康检查时区分证书信任与连接问题；正式访问仍需信任证书。返回 `{"status":"ok"}` 表示代理、应用和数据库可用；连接超时或拒绝连接时检查端口映射、容器状态和防火墙；TLS 握手失败时检查代理是否已加载更新后的 `default_sni`；返回 502 时查看应用日志。共享排查信息时只提供 `DOMAIN`、`PUBLIC_URL` 和必要日志，不要粘贴完整 `.env`。
 
 ### 备份和恢复
 

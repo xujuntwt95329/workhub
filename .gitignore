@@ -11,3 +11,4 @@ test-results/
 playwright-report/
 artifacts/
 backups/
+workhub-root.crt

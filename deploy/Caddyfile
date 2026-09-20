@@ -1,3 +1,8 @@
+{
+  # IP-based clients omit SNI; Docker's internal IP is not the site's address.
+  default_sni {$DOMAIN}
+}
+
 {$DOMAIN} {
   encode zstd gzip
   header Strict-Transport-Security "max-age=31536000"
