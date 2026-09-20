@@ -18,6 +18,7 @@ import {
   LoaderCircle,
   X,
   ShieldCheck,
+  Star,
 } from "lucide-react";
 import {
   currentWorkspaceRecords,
@@ -30,6 +31,7 @@ import { HubContext, entityPath, type Hub } from "./state";
 import { Dashboard, Tasks, Todos, Reviews } from "./pages";
 import { TaskPage, ReportsPage } from "./task-page";
 import { AssistantPage, SettingsPage } from "./tools-pages";
+import { StarredPage } from "./starred-page";
 export function Logo() {
   return (
     <span className="brand">
@@ -155,6 +157,7 @@ export function App() {
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/tasks/:id" element={<TaskPage />} />
           <Route path="/todos" element={<Todos />} />
+          <Route path="/starred" element={<StarredPage />} />
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
@@ -213,6 +216,7 @@ function Shell({
     ["/", "工作台", LayoutDashboard],
     ["/tasks", "工程任务", Layers],
     ["/todos", "待办事项", Lightbulb],
+    ["/starred", "重点关注", Star],
     ["/assistant", "智能助手", Sparkles],
     ["/reports", "报告与矩阵", ChartNoAxesCombined],
   ] as const;
@@ -281,6 +285,17 @@ function Shell({
             >
               <Icon size={19} />
               <span>{label}</span>
+              {path === "/starred" && (
+                <span className="nav-count">
+                  {
+                    records.filter(
+                      (r) =>
+                        r.starred &&
+                        (project === "all" || r.projectId === project),
+                    ).length
+                  }
+                </span>
+              )}
               {path === "/todos" && (
                 <span className="nav-count">
                   {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, Star } from "lucide-react";
 import type { Entity } from "../shared/domain";
 import { Empty } from "./components";
 
@@ -139,7 +139,12 @@ export function CompactRow({
   return (
     <article
       id={"record-" + record.id}
-      className={["compact-record", className, focus ? "focused" : ""]
+      className={[
+        "compact-record",
+        className,
+        focus ? "focused" : "",
+        record.starred ? "starred" : "",
+      ]
         .filter(Boolean)
         .join(" ")}
     >
@@ -152,6 +157,15 @@ export function CompactRow({
         >
           <ChevronRight size={15} className={open ? "rotated" : ""} />
           <span className="mono">{record.key}</span>
+          {record.starred && (
+            <Star
+              size={14}
+              className="star-indicator"
+              fill="currentColor"
+              role="img"
+              aria-label="重点关注项"
+            />
+          )}
           <strong title={record.title}>{record.title}</strong>
         </button>
         <div className="row-meta">{meta}</div>

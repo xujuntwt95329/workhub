@@ -9,6 +9,119 @@ beforeAll(async () => {
 });
 beforeEach(async () => clear(db));
 afterAll(async () => db.close());
+describe("workspace focus metadata", () => {
+  it("preserves approved versions, history and valid quality evidence across every supported kind", async () => {
+    const f = await readyTask(s);
+    const originals = [f.requirement, f.criterion, f.check, f.result];
+    for (const kind of [
+      "design",
+      "work_item",
+      "issue",
+      "todo",
+      "principle",
+      "question",
+    ])
+      originals.push(
+        await s.create(owner, { kind, taskId: f.task.id, title: kind }),
+      );
+    const before = await s.report(owner, f.task.id);
+    for (const original of originals) {
+      const history = await s.history(owner, original.id);
+      expect(original.starred).toBe(false);
+      expect(await s.setStarred(agent([f.task.id]), original.id, true)).toEqual(
+        { ...original, starred: true },
+      );
+      expect(await s.history(owner, original.id)).toEqual(history);
+    }
+    const after = await s.report(owner, f.task.id);
+    expect(after.metrics).toEqual(before.metrics);
+    expect(after.gaps).toEqual(before.gaps);
+    expect(await s.list(owner, undefined, f.task.id, true)).toHaveLength(10);
+    expect(await s.list(owner, "requirement", f.task.id, true)).toHaveLength(1);
+    expect(await s.list(owner, undefined, f.task.id, false)).toHaveLength(0);
+    expect(await s.setStarred(owner, f.requirement.id, false)).toEqual(
+      f.requirement,
+    );
+  });
+
+  it("enforces scope and types, replays safely, and cannot overwrite concurrent content edits", async () => {
+    const f = await readyTask(s);
+    for (const actor of [agent([f.task.id], ["read"]), agent(["other"])])
+      await expect(
+        s.setStarred(actor, f.requirement.id, true),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(s.setStarred(owner, "missing", true)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(s.setStarred(owner, f.project.id, true)).rejects.toMatchObject(
+      { code: "INVALID_STAR" },
+    );
+    await expect(
+      s.setStarred(owner, f.requirement.id, "true" as any),
+    ).rejects.toMatchObject({ code: "INVALID_STAR" });
+    const results = await Promise.all([
+      s.setStarred(owner, f.requirement.id, true, "star-request"),
+      s.setStarred(owner, f.requirement.id, true, "star-request"),
+      s.update(owner, f.requirement.id, 1, {
+        body: "Updated article search details",
+      }),
+    ]);
+    expect(results[0]).toEqual(results[1]);
+    expect(await s.get(f.requirement.id)).toMatchObject({
+      starred: true,
+      version: 2,
+      body: "Updated article search details",
+    });
+    await expect(
+      s.setStarred(owner, f.requirement.id, false, "star-request"),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await s.setStarred(owner, f.requirement.id, false, "unstar-request");
+    // A replay returns its original response without reapplying the old flag.
+    await s.setStarred(owner, f.requirement.id, true, "star-request");
+    expect((await s.get(f.requirement.id)).starred).toBe(false);
+    expect(await s.list(agent(["other"]), undefined, undefined, true)).toEqual(
+      [],
+    );
+  });
+
+  it("retains focus across rejection, deletion and closed tasks, including immutable results", async () => {
+    const f = await readyTask(s);
+    await s.setStarred(owner, f.requirement.id, true);
+    const rejected = await s.disposeRequirement(
+      owner,
+      f.requirement.id,
+      1,
+      "reject",
+      "Later iteration",
+    );
+    expect(rejected.starred).toBe(true);
+    await s.setStarred(owner, rejected.id, false);
+    const restored = await s.disposeRequirement(
+      owner,
+      rejected.id,
+      rejected.version,
+      "restore",
+      "Needed now",
+    );
+    await s.setStarred(owner, restored.id, true);
+    const deleted = await s.disposeRequirement(
+      owner,
+      restored.id,
+      restored.version,
+      "delete",
+      "Duplicate scope",
+    );
+    expect(deleted.starred).toBe(true);
+    await s.setStarred(owner, deleted.id, false);
+    await s.changeStatus(owner, f.task.id, f.task.version, "cancelled");
+    expect(await s.setStarred(owner, f.result.id, true)).toEqual({
+      ...f.result,
+      starred: true,
+    });
+    expect(await s.setStarred(owner, f.result.id, false)).toEqual(f.result);
+  });
+});
+
 describe("transactional records and concurrent agents", () => {
   it("creates a complete graph with immutable history and readable scoped context", async () => {
     const f = await readyTask(s);

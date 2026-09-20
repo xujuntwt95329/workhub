@@ -22,6 +22,7 @@ import { useHub, entityPath } from "./state";
 import { Badge, Button, Empty, History, Markdown, Modal } from "./components";
 import { CompactRow, RecordList, useList } from "./compact";
 import { post, formatDate } from "./lib/api";
+import { StarButton } from "./stars";
 
 function Confirmed({ record: r }: { record: Entity }) {
   return (
@@ -41,6 +42,7 @@ function Actions({
     [history, setHistory] = useState(false);
   return (
     <>
+      <StarButton record={r} />
       <button
         className="icon-button"
         aria-label={"查看" + r.title + "版本"}
@@ -817,7 +819,9 @@ export function TaskRecordsPanel({
             }
             actions={
               <>
-                {r.kind !== "result" && (
+                {r.kind === "result" ? (
+                  <StarButton record={r} />
+                ) : (
                   <Actions record={r} readonly={readonly} />
                 )}{" "}
                 {!readonly && availableTransitions(r).length > 0 && (

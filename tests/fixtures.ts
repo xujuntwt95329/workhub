@@ -13,6 +13,7 @@ export function record(kind: Kind, patch: Partial<Entity> = {}): Entity {
     taskId: kind === "task" ? null : "task",
     projectId: "project",
     status: "draft",
+    starred: false,
     version: 1,
     approvedVersion: 1,
     data: {},

@@ -29,6 +29,7 @@ export type AppConfig = AuthConfig & {
   allowedLlmOrigins?: string[];
   logger?: boolean;
   staticRoot?: string;
+  rateLimitMax?: number;
 };
 export async function buildApp(db: Database, config: AppConfig) {
   await migrateTaskPrinciples(db);
@@ -53,7 +54,10 @@ export async function buildApp(db: Database, config: AppConfig) {
       config.allowedLlmOrigins,
     );
   await app.register(cookie);
-  await app.register(rateLimit, { max: 600, timeWindow: "1 minute" });
+  await app.register(rateLimit, {
+    max: config.rateLimitMax ?? 600,
+    timeWindow: "1 minute",
+  });
   await app.register(swagger, {
     openapi: {
       info: { title: "WorkHub API", version: "0.1.0" },
@@ -186,11 +190,17 @@ export async function buildApp(db: Database, config: AppConfig) {
         kind: z.enum(kinds).optional(),
         taskId: z.string().optional(),
         q: z.string().optional(),
+        starred: z.enum(["true", "false"]).optional(),
         offset: z.coerce.number().int().min(0).default(0),
         limit: z.coerce.number().int().min(1).max(500).default(100),
       })
       .parse(req.query);
-    let data = await service.list(req.actor, q.kind, q.taskId);
+    let data = await service.list(
+      req.actor,
+      q.kind,
+      q.taskId,
+      q.starred === undefined ? undefined : q.starred === "true",
+    );
     if (q.q) {
       const term = q.q.toLowerCase();
       data = data.filter((e) =>
@@ -233,6 +243,17 @@ export async function buildApp(db: Database, config: AppConfig) {
   app.get("/api/v1/records/:id/revisions", async (req) => ({
     data: await service.history(req.actor, id(req.params)),
   }));
+  app.post("/api/v1/records/:id/star", async (req) => {
+    const body = z.object({ starred: z.boolean() }).strict().parse(req.body);
+    return {
+      data: await service.setStarred(
+        req.actor,
+        id(req.params),
+        body.starred,
+        key(req.headers),
+      ),
+    };
+  });
   app.post("/api/v1/records/:id/transitions", async (req) => {
     const b = z
       .object({

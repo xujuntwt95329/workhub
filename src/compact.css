@@ -520,3 +520,75 @@
 .snapshot-row {
   padding: 10px 16px;
 }
+
+.compact-record.starred > .compact-row {
+  background: #fff6df;
+  box-shadow: inset 3px 0 #b88422;
+}
+.compact-record.starred > .compact-row:hover {
+  background: #fff0cc;
+}
+.compact-record.starred > .compact-detail {
+  background: #fffcf3;
+}
+.criterion-detail.starred {
+  border-color: #d9bd78;
+}
+.row-toggle .star-indicator,
+.icon-button.star-button.is-starred {
+  color: #946310;
+}
+.star-indicator {
+  flex-shrink: 0;
+}
+.star-button:hover {
+  background: #f5e5bb;
+  color: #79500c;
+}
+.starred-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-bottom: 12px;
+}
+.starred-filters label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.starred-filters select {
+  width: auto;
+  max-width: 260px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.starred-kind {
+  color: #785b26;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.starred-task {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .starred-filters select {
+    max-width: 230px;
+  }
+  .starred-task {
+    max-width: 120px;
+  }
+  .starred-page .row-meta {
+    flex-wrap: wrap;
+    max-width: calc(100% - 25px);
+  }
+}

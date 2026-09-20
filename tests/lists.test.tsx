@@ -21,6 +21,8 @@ import { HubContext, type Hub } from "../src/state";
 import { owner } from "../server/service";
 import { record, sha } from "./fixtures";
 import type { Entity } from "../shared/domain";
+import { StarredPage } from "../src/starred-page";
+import { StarButton } from "../src/stars";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -38,6 +40,105 @@ function hub(records: Entity[]): Hub {
     sample: false,
   };
 }
+it("shows a compact focus collection with type, task, project and text filters, including inactive records", () => {
+  const task = record("task", { title: "Article search", status: "done" });
+  const req = record("requirement", {
+    title: "Search articles",
+    status: "rejected",
+    starred: true,
+  });
+  const criterion = record("criterion", {
+    title: "Unique matches",
+    starred: true,
+    data: { requirementId: req.id },
+  });
+  const design = record("design", { title: "Search design", starred: true });
+  const global = record("todo", {
+    title: "An idea",
+    taskId: null,
+    projectId: null,
+    starred: true,
+  });
+  const other = record("check", {
+    title: "Other project",
+    projectId: "other",
+    starred: true,
+  });
+  const ctx = hub([
+    task,
+    req,
+    criterion,
+    design,
+    global,
+    other,
+    record("issue", { title: "Not followed" }),
+  ]);
+  const view = (context: Hub) => (
+    <MemoryRouter>
+      <HubContext.Provider value={context}>
+        <StarredPage />
+      </HubContext.Provider>
+    </MemoryRouter>
+  );
+  const { rerender } = render(view(ctx));
+  expect(screen.getAllByRole("article")).toHaveLength(5);
+  expect(screen.getAllByRole("img", { name: "重点关注项" })).toHaveLength(5);
+  expect(screen.queryByText("Not followed")).toBeNull();
+  expect(
+    screen.getByRole("link", { name: "查看原条目" + criterion.title }),
+  ).toHaveAttribute("href", "/tasks/task?tab=requirements&focus=criterion");
+  expect(screen.getByText("需求已拒绝")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("关注类型"), {
+    target: { value: "design" },
+  });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(screen.getByText(design.title)).toBeVisible();
+  fireEvent.change(screen.getByLabelText("关注类型"), {
+    target: { value: "all" },
+  });
+  fireEvent.change(screen.getByLabelText("关注任务"), {
+    target: { value: "global" },
+  });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(screen.getByText(global.title)).toBeVisible();
+  fireEvent.change(screen.getByLabelText("关注任务"), {
+    target: { value: task.id },
+  });
+  fireEvent.change(screen.getByLabelText("搜索列表"), {
+    target: { value: "Unique" },
+  });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  fireEvent.change(screen.getByLabelText("搜索列表"), {
+    target: { value: "" },
+  });
+  rerender(view({ ...ctx, project: "project" }));
+  expect(screen.getAllByRole("article")).toHaveLength(3);
+  expect(screen.queryByText(other.title)).toBeNull();
+});
+
+it("prevents duplicate star submissions while pending and leaves failures retryable", async () => {
+  const item = record("requirement");
+  const ctx = hub([item]);
+  let finish!: (value: undefined) => void;
+  const pending = new Promise<undefined>((resolve) => {
+    finish = resolve;
+  });
+  ctx.act = vi.fn(() => pending);
+  render(
+    <HubContext.Provider value={ctx}>
+      <StarButton record={item} />
+    </HubContext.Provider>,
+  );
+  const button = screen.getByRole("button", { name: "重点关注requirement" });
+  fireEvent.click(button);
+  expect(button).toBeDisabled();
+  fireEvent.click(button);
+  expect(ctx.act).toHaveBeenCalledTimes(1);
+  finish(undefined); // Hub reports failed requests and returns undefined.
+  await waitFor(() => expect(button).toBeEnabled());
+  expect(button).toHaveAttribute("aria-pressed", "false");
+});
+
 it("shows only one page of collapsed rows, supports search and page size, and expands details on demand", () => {
   const records = Array.from({ length: 61 }, (_, i) =>
     record("requirement", {

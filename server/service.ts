@@ -22,6 +22,7 @@ import {
   isCurrent,
   activeTaskRecords,
   currentWorkspaceRecords,
+  starKinds,
 } from "../shared/domain.js";
 import { traceability } from "../shared/traceability.js";
 type Row = {
@@ -33,6 +34,7 @@ type Row = {
   title: string;
   body: string;
   status: string;
+  starred: boolean;
   data: Data;
   version: number;
   approved_version: number | null;
@@ -51,6 +53,7 @@ export function entity(r: Row): Entity {
     title: r.title,
     body: r.body,
     status: r.status,
+    starred: r.starred,
     data: r.data,
     version: r.version,
     approvedVersion: r.approved_version,
@@ -84,13 +87,42 @@ export class Service {
     authorize(actor, "read", e);
     return e;
   }
-  async list(actor: Actor, kind?: Kind, taskId?: string) {
+  async list(actor: Actor, kind?: Kind, taskId?: string, starred?: boolean) {
     authorize(actor, "read");
     return (await this.all()).filter(
       (e) =>
         canRead(actor, e) &&
         (!kind || e.kind === kind) &&
-        (!taskId || e.taskId === taskId),
+        (!taskId || e.taskId === taskId) &&
+        (starred === undefined || e.starred === starred),
+    );
+  }
+  async setStarred(actor: Actor, id: string, starred: boolean, key?: string) {
+    authorize(actor, "write");
+    ensure(
+      typeof starred === "boolean",
+      "INVALID_STAR",
+      "关注状态必须为布尔值",
+    );
+    return this.mutation(
+      actor,
+      key,
+      { action: "star", id, starred },
+      async (tx) => {
+        const current = await this.get(id, tx);
+        authorize(actor, "write", current);
+        ensure(
+          starKinds.includes(current.kind),
+          "INVALID_STAR",
+          "此类型不支持重点关注",
+        );
+        // Workspace metadata must not invalidate approvals, evidence or content history.
+        await tx.query("UPDATE records SET starred=$2 WHERE id=$1", [
+          id,
+          starred,
+        ]);
+        return { ...current, starred };
+      },
     );
   }
   async lock(tx: Sql) {

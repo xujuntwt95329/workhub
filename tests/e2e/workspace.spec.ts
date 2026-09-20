@@ -4,6 +4,160 @@ import { readFileSync } from "node:fs";
 import { unzipSync, strFromU8 } from "fflate";
 let cookies: Cookie[];
 
+test("persists focus marks across engineering lists and provides a searchable collection with source links", async ({
+  page,
+}) => {
+  const create = async (data: object) => {
+    const res = await page.request.post("/api/v1/records", { data });
+    expect(res.ok(), await res.text()).toBe(true);
+    return (await res.json()).data;
+  };
+  const project = await create({ kind: "project", title: "文章知识库" });
+  const task = await create({
+    kind: "task",
+    title: "优化文章搜索体验",
+    projectId: project.id,
+  });
+  const req = await create({
+    kind: "requirement",
+    taskId: task.id,
+    title: "按关键词与分类查找文章",
+    body: "读者可以快速定位相关文章，并保留当前筛选条件。",
+    approve: true,
+  });
+  const ac = await create({
+    kind: "criterion",
+    taskId: task.id,
+    title: "匹配结果不重复且完整",
+    body: "搜索结果与预期文章集合一致，每篇文章仅出现一次。",
+    data: { requirementId: req.id },
+    approve: true,
+  });
+  const design = await create({
+    kind: "design",
+    taskId: task.id,
+    title: "搜索索引与查询接口设计",
+    body: "统一查询入口，分页返回结果并保留筛选参数。",
+  });
+  const check = await create({
+    kind: "check",
+    taskId: task.id,
+    title: "关键词与分类组合检索",
+    data: {
+      criterionIds: [ac.id],
+      steps: "输入关键词并选择分类",
+      expectedResult: "结果符合所有条件",
+    },
+  });
+  await create({
+    kind: "requirement",
+    taskId: task.id,
+    title: "没有匹配结果时提供引导",
+    body: "展示清晰的空状态提示。",
+  });
+  const url = "/tasks/" + task.id;
+  await page.goto(url + "?tab=requirements");
+  await page
+    .getByRole("button", { name: "重点关注" + req.title, exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "取消重点关注" + req.title, exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const reqRow = page.locator("#record-" + req.id);
+  await expect(reqRow).toHaveClass(/starred/);
+  expect((await reqRow.boundingBox())!.height).toBeLessThanOrEqual(50);
+  await page.getByRole("button", { name: "展开" + req.title }).click();
+  await page.getByRole("button", { name: "重点关注" + ac.title }).click();
+  await expect(page.locator("#record-" + ac.id)).toHaveClass(/starred/);
+  await page.screenshot({
+    path: "artifacts/starred-requirements.png",
+    fullPage: true,
+  });
+  for (const [tab, item] of [
+    ["designs", design],
+    ["tests", check],
+  ] as const) {
+    await page.goto(url + "?tab=" + tab);
+    await page.getByRole("button", { name: "重点关注" + item.title }).click();
+    await expect(
+      page.getByRole("button", { name: "取消重点关注" + item.title }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
+  await page.reload();
+  await expect(page.locator("#record-" + check.id)).toHaveClass(/starred/);
+  await page.getByRole("link", { name: /重点关注/ }).click();
+  await page.getByLabel("关注任务").selectOption(task.id);
+  await expect(page.getByRole("article")).toHaveCount(4);
+  await expect(page.locator("#record-" + req.id)).toContainText("已确认");
+  await expect(page.getByRole("img", { name: "重点关注项" })).toHaveCount(4);
+  await page.getByLabel("关注类型").selectOption("design");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByText(design.title, { exact: true })).toBeVisible();
+  await page.getByLabel("关注类型").selectOption("all");
+  await page.getByLabel("搜索列表").fill("组合");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await page.getByLabel("搜索列表").clear();
+  await page.screenshot({
+    path: "artifacts/starred-desktop.png",
+    fullPage: true,
+  });
+  const scan = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(
+    scan.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => n.target),
+    })),
+  ).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.locator(".sidebar").evaluate((e) => e.getBoundingClientRect().right),
+    )
+    .toBeLessThanOrEqual(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "artifacts/starred-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.getByRole("link", { name: "查看原条目" + ac.title }).click();
+  await expect(
+    page.getByRole("button", { name: "收起" + req.title }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "收起" + ac.title }),
+  ).toBeVisible();
+  await expect(page.locator("#record-" + ac.id)).toHaveClass(/starred/);
+  await page.getByRole("button", { name: "取消重点关注" + ac.title }).click();
+  await expect(page.locator("#record-" + ac.id)).not.toHaveClass(/starred/);
+  const rejected = await page.request.post(
+    "/api/v1/requirements/" + req.id + "/reject",
+    { data: { expectedVersion: req.version, reason: "后续迭代再处理" } },
+  );
+  expect(rejected.ok(), await rejected.text()).toBe(true);
+  await page.goto("/starred?taskId=" + task.id);
+  await expect(page.locator("#record-" + req.id)).toContainText("已拒绝");
+  await page.getByRole("link", { name: "查看原条目" + req.title }).click();
+  await expect(
+    page.getByRole("button", { name: "收起" + req.title }),
+  ).toBeVisible();
+  await expect(page.locator("#record-" + req.id)).toHaveClass(/starred/);
+  const stored = (
+    await (await page.request.get("/api/v1/records/" + ac.id)).json()
+  ).data;
+  expect(stored).toMatchObject({
+    starred: false,
+    version: ac.version,
+    approvedVersion: ac.approvedVersion,
+  });
+});
+
 test("downloads Claude plugins with installation help on desktop and mobile", async ({
   page,
 }) => {

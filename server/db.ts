@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS records(
 );
 CREATE INDEX IF NOT EXISTS records_task_idx ON records(task_id,kind);
 CREATE INDEX IF NOT EXISTS records_kind_idx ON records(kind,status);
+ALTER TABLE records ADD COLUMN IF NOT EXISTS starred boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS revisions(id bigserial primary key, record_id text NOT NULL REFERENCES records(id), version integer NOT NULL, snapshot jsonb NOT NULL, actor_id text NOT NULL, UNIQUE(record_id,version));
 CREATE TABLE IF NOT EXISTS events(id bigserial primary key, task_id text, actor_id text NOT NULL, action text NOT NULL, record_id text, title text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS reviews(id text primary key, task_id text, record_id text NOT NULL REFERENCES records(id), version integer NOT NULL, status text NOT NULL DEFAULT 'pending', comment text NOT NULL DEFAULT '', actor_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());

@@ -92,7 +92,21 @@ it("executes every MCP tool through the official protocol with version and scope
       expect(r.isError, JSON.stringify(r)).not.toBe(true);
       return JSON.parse((r.content as { text: string }[])[0].text);
     };
-    expect((await client.listTools()).tools).toHaveLength(9);
+    expect((await client.listTools()).tools).toHaveLength(10);
+    const starred = await call("set_record_star", {
+      id: f.requirement.id,
+      starred: true,
+      idempotencyKey: "mcp-star",
+    });
+    expect(starred).toEqual({ ...f.requirement, starred: true });
+    expect(
+      await call("list_records", { starred: true, taskId: f.task.id }),
+    ).toEqual([starred]);
+    expect(
+      (await call("list_records", { starred: false })).every(
+        (r: any) => !r.starred,
+      ),
+    ).toBe(true);
     const schema = await client.readResource({ uri: "workhub://schema" });
     const schemaContent = schema.contents[0];
     expect(

@@ -73,6 +73,16 @@ curl https://workhub.example.com/api/v1/tasks/TASK_ID/requirements \
 
 已关闭任务需先重新打开。执行结果只能追加，仍被引用的条目不能归档。waiver/targetTaskId/principles/principleChecks/disposition 是服务端维护字段，普通写入禁止伪造。
 
+## 重点关注
+
+需求、验收标准、设计、实施事项、问题、测试用例、执行结果、待办、原则和待决问题支持重点关注。记录顶层返回 `starred` 布尔值，默认 false；这是个人工作空间内共享的标记，跨设备保留。UI 的“重点关注”入口支持搜索、类型/任务/项目筛选和分页，已结束、拒绝、删除或归档的关注项仍可查看和取消关注。
+
+- `POST /api/v1/records/:id/star`：`{"starred":true}` 加入关注，false 取消。可带 `Idempotency-Key`；不需要 `expectedVersion`。
+- `GET /api/v1/records?starred=true`：查看已关注内容，可同时指定 kind、taskId、q、offset、limit。false 查询未关注内容；不传则返回全部。
+- MCP `set_record_star`：`{id,starred,idempotencyKey}`；`list_records` 增加可选布尔筛选 `starred`。
+
+关注需要条目所在任务的 write 权限，读取仍遵守原有范围限制。关注不会修改内容版本、更新时间、已确认版本、质量证据或内容修订历史；已关闭任务和不可编辑的执行结果也可设置关注。不能通过普通 PATCH 或 data 字段修改标记。更新服务时自动补充数据库字段，已有条目默认未关注。
+
 ## 任务归属、需求生命周期和追溯
 
 原则必须带 taskId；默认 scope=task，不再支持创建全局或项目原则。待办可全局创建或附带 taskId。原则和待办都支持任务内嵌套创建路径。

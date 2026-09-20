@@ -39,13 +39,29 @@ export function createMcpServer(service: Service, actor: Actor) {
   server.registerTool(
     "list_records",
     {
-      description: "按类型或任务读取工程记录。",
+      description: "按类型、任务或重点关注状态读取工程记录。",
       inputSchema: {
         kind: z.enum(kinds).optional(),
         taskId: z.string().optional(),
+        starred: z.boolean().optional(),
       },
     },
-    async ({ kind, taskId }) => output(await service.list(actor, kind, taskId)),
+    async ({ kind, taskId, starred }) =>
+      output(await service.list(actor, kind, taskId, starred)),
+  );
+  server.registerTool(
+    "set_record_star",
+    {
+      description:
+        "设置或取消工程条目的重点关注标记；不改变内容版本、审批或测试证据。标记在工作空间内共享。",
+      inputSchema: {
+        id: z.string(),
+        starred: z.boolean(),
+        idempotencyKey: z.string(),
+      },
+    },
+    async ({ id, starred, idempotencyKey }) =>
+      output(await service.setStarred(actor, id, starred, idempotencyKey)),
   );
   server.registerTool(
     "create_record",
@@ -158,7 +174,7 @@ export function createMcpServer(service: Service, actor: Actor) {
       contents: [
         {
           uri: "workhub://guide",
-          text: "先读取 workhub://schema 与任务上下文，再使用 create_record/update_record 提交结构化内容。原则必须带 taskId；待办可带 taskId 或通过 assign_todo_to_task 归入任务。需求通过 requirement_group 和 groupId 分组。check 是测试用例，criterionIds 关联多个验收标准；result 必须绑定 requirementVersions、criterionVersions、checkVersion 与实际 codeRef。get_quality_matrix 包含双向 traceability、未关联与过期证据。拒绝/删除需求不属于当前验收范围，恢复由 Owner 操作。所有更新需 expectedVersion，创建与业务动作需稳定 idempotencyKey。不要把自报测试结论当作人工验收。",
+          text: "先读取 workhub://schema 与任务上下文，再使用 create_record/update_record 提交结构化内容。原则必须带 taskId；待办可带 taskId 或通过 assign_todo_to_task 归入任务。需求通过 requirement_group 和 groupId 分组。check 是测试用例，criterionIds 关联多个验收标准；result 必须绑定 requirementVersions、criterionVersions、checkVersion 与实际 codeRef。get_quality_matrix 包含双向 traceability、未关联与过期证据。拒绝/删除需求不属于当前验收范围，恢复由 Owner 操作。内容更新需 expectedVersion，创建与业务动作需稳定 idempotencyKey。重点关注通过 set_record_star 设置，list_records 的 starred 参数可筛选关注项；关注不改变内容版本，无需 expectedVersion。不要把自报测试结论当作人工验收。",
         },
       ],
     }),

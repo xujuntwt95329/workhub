@@ -2,7 +2,7 @@
 
 ## 连接与权限
 
-插件通过 HTTP MCP 接入 WorkHub，常用工具为 `list_records`、`get_task_context`、`create_record`、`update_record`、`transition_record`、`request_review`、`get_quality_matrix`、`assign_todo_to_task`、`convert_todo_to_task`。客户端可能添加 `plugin_workhub_workhub` 前缀；以实际发现的工具与输入定义为准。
+插件通过 HTTP MCP 接入 WorkHub，常用工具为 `list_records`、`get_task_context`、`create_record`、`update_record`、`transition_record`、`request_review`、`get_quality_matrix`、`assign_todo_to_task`、`convert_todo_to_task`、`set_record_star`。客户端可能添加 `plugin_workhub_workhub` 前缀；以实际发现的工具与输入定义为准。
 
 首次使用读取 `workhub://schema` 与 `workhub://guide`。离线参考 `record-schema.json` 随下载生成，在线契约优先，当前要求 version 2。没有 WorkHub 工具时先说明连接缺失，不声称内容已同步。
 
@@ -20,7 +20,9 @@ OAuth 授权的是工作空间级只读/读写权限；独立 Token 可限定任
 
 每个创建、修改、状态动作生成一个新的稳定 idempotencyKey（例如 UUID）。仅重试**完全相同**的动作才复用该键。工具报错或网络中断时先核对结果，不盲目换键重做，以免重复创建。
 
-更新必须带刚读到的 expectedVersion。409 VERSION_CONFLICT 时重读该记录，比较修改；明确无冲突的补丁可以合并后以新键提交，有实质冲突则保留用户输入并说明需要决定的部分。不要不断覆盖，也不要把旧证据重标为新版本。
+内容更新必须带刚读到的 expectedVersion。409 VERSION_CONFLICT 时重读该记录，比较修改；明确无冲突的补丁可以合并后以新键提交，有实质冲突则保留用户输入并说明需要决定的部分。不要不断覆盖，也不要把旧证据重标为新版本。
+
+重点关注是工作空间内共享的独立标记：使用 `set_record_star`（id、starred、idempotencyKey）设置或取消，通过 `list_records` 的可选 `starred` 布尔参数查询。标记不改变内容版本、审批与测试证据，无需 expectedVersion；已结束或退出范围的条目也可取消关注。遵守任务 write 权限，不使用普通 update_record 或 data 写入 starred。
 
 任务 done/cancelled 时写入会受限，先说明需要 Owner 重新打开。只读调用不需要幂等键。
 

@@ -19,6 +19,8 @@ it("persists committed records and idempotency across a database restart, while 
         throw new Error("Abort");
       }),
     ).rejects.toThrow("Abort");
+    // Simulate an existing installation before the metadata column was added.
+    await db.query("ALTER TABLE records DROP COLUMN starred");
     await db.close();
     db = await openDatabase(undefined, root);
     const reopened = new Service(db);
@@ -27,6 +29,24 @@ it("persists committed records and idempotency across a database restart, while 
       original.id,
     );
     expect(await reopened.all()).toHaveLength(1);
+    expect((await reopened.get(original.id)).starred).toBe(false);
+    const marked = await reopened.setStarred(
+      owner,
+      original.id,
+      true,
+      "persist-star",
+    );
+    await db.close();
+    db = await openDatabase(undefined, root);
+    expect(await new Service(db).get(original.id)).toEqual(marked);
+    expect(
+      await new Service(db).setStarred(
+        owner,
+        original.id,
+        true,
+        "persist-star",
+      ),
+    ).toEqual(marked);
   } finally {
     await db.close();
     const target = resolve(root);

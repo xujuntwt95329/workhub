@@ -38,6 +38,83 @@ const request = (
   headers: Record<string, string> = {},
 ) => hub.app.inject({ method, url, payload, headers: { cookie, ...headers } });
 
+it("sets focus with strict input, filters before pagination, and enforces token scopes", async () => {
+  const f = await readyTask(hub.service);
+  const base = "/api/v1/records/" + f.requirement.id;
+  const marked = await request("POST", base + "/star", { starred: true });
+  expect(marked.statusCode, marked.body).toBe(200);
+  expect(marked.json().data).toEqual({ ...f.requirement, starred: true });
+  await hub.service.setStarred(owner, f.criterion.id, true);
+  const page = (
+    await request(
+      "GET",
+      "/api/v1/records?starred=true&limit=1&offset=1&taskId=" + f.task.id,
+    )
+  ).json();
+  expect(page.total).toBe(2);
+  expect(page.nextOffset).toBe(null);
+  expect(page.data[0].id).toBe(f.criterion.id);
+  expect(
+    (await request("GET", "/api/v1/records?starred=false")).json().total,
+  ).toBe((await hub.service.all()).length - 2);
+  expect(
+    (
+      await request(
+        "GET",
+        "/api/v1/records?starred=true&kind=requirement&q=articles",
+      )
+    ).json().total,
+  ).toBe(1);
+  expect(
+    (await request("GET", "/api/v1/records?starred=invalid")).statusCode,
+  ).toBe(422);
+  for (const payload of [
+    {},
+    { starred: "true" },
+    { starred: 1 },
+    { starred: null },
+    { starred: true, title: "Changed" },
+  ])
+    expect((await request("POST", base + "/star", payload)).statusCode).toBe(
+      422,
+    );
+  expect(
+    (await request("PATCH", base, { expectedVersion: 1, starred: true }))
+      .statusCode,
+  ).toBe(422);
+  const other = await hub.service.create(owner, {
+    kind: "task",
+    title: "Another task",
+    projectId: f.project.id,
+  });
+  for (const taskIds of [[f.task.id], [other.id]]) {
+    const tokenResponse = await request("POST", "/api/tokens", {
+      name: "Read only focus",
+      taskIds,
+      permissions: taskIds[0] === f.task.id ? ["read"] : ["read", "write"],
+      days: 7,
+    });
+    expect(tokenResponse.statusCode, tokenResponse.body).toBe(200);
+    const headers = { authorization: "Bearer " + tokenResponse.json().token };
+    const denied = await hub.app.inject({
+      method: "POST",
+      url: base + "/star",
+      payload: { starred: false },
+      headers,
+    });
+    expect(denied.statusCode).toBe(403);
+    const list = await hub.app.inject({
+      method: "GET",
+      url: "/api/v1/records?starred=true",
+      headers,
+    });
+    expect(list.json().total).toBe(taskIds[0] === f.task.id ? 2 : 0);
+  }
+  expect(
+    (await request("POST", base + "/star", { starred: false })).json().data,
+  ).toEqual(f.requirement);
+});
+
 it("exposes task-owned content, requirement groups, lifecycle and traceability through public APIs", async () => {
   const f = await readyTask(hub.service);
   const create = async (path: string, data: object) => {

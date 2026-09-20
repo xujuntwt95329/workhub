@@ -16,6 +16,18 @@ export const kinds = [
   "question",
 ] as const;
 export type Kind = (typeof kinds)[number];
+export const starKinds: Kind[] = [
+  "requirement",
+  "criterion",
+  "design",
+  "work_item",
+  "issue",
+  "check",
+  "result",
+  "todo",
+  "principle",
+  "question",
+];
 export type Actor = {
   id: string;
   name: string;
@@ -87,6 +99,7 @@ export type Entity = {
   title: string;
   body: string;
   status: string;
+  starred: boolean;
   data: Data;
   version: number;
   approvedVersion: number | null;
