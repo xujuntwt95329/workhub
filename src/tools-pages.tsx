@@ -22,7 +22,7 @@ import {
   Code2,
   Package,
 } from "lucide-react";
-import { useHub } from "./state";
+import { useHub, entityPath } from "./state";
 import { api, post, formatDate } from "./lib/api";
 import { PageHeading } from "./pages";
 import { Button, Markdown, Modal, Badge } from "./components";
@@ -190,13 +190,13 @@ export function AssistantPage() {
                           <Link
                             key={s.id + i}
                             to={
-                              s.taskId
-                                ? "/tasks/" + s.taskId
-                                : s.id &&
-                                    records.find((r) => r.id === s.id)?.kind ===
-                                      "task"
-                                  ? "/tasks/" + s.id
-                                  : "/principles"
+                              records.some((r) => r.id === s.id)
+                                ? entityPath(
+                                    records.find((r) => r.id === s.id)!,
+                                  )
+                                : s.taskId
+                                  ? "/tasks/" + s.taskId
+                                  : "/tasks"
                             }
                           >
                             <FileText size={13} />
@@ -466,7 +466,10 @@ export function SettingsPage() {
                 </span>
               </div>
               <div className="settings-footer">
-                <span className="muted">今日已调用 {config.calls ?? 0} 次</span>
+                <span className="muted">
+                  今日已发出模型请求 {config.calls ?? 0} / {config.dailyLimit}{" "}
+                  次（含请求失败）
+                </span>
                 <Button type="submit" disabled={saving}>
                   {saving ? (
                     <LoaderCircle className="spin" size={16} />
@@ -476,6 +479,35 @@ export function SettingsPage() {
                   保存配置
                 </Button>
               </div>
+              {config.localFailuresExcluded > 0 && (
+                <p className="muted small-text">
+                  已从今日计数扣除旧版本在本地拦截、未请求模型的{" "}
+                  {config.localFailuresExcluded} 次运行。
+                </p>
+              )}
+              {!!config.recentFailures?.length && (
+                <div className="assistant-failures">
+                  <strong>最近失败的运行</strong>
+                  {config.recentFailures.map(
+                    (r: {
+                      id: string;
+                      task_id: string | null;
+                      error: string;
+                    }) => (
+                      <p key={r.id} className="small-text">
+                        {r.task_id && (
+                          <Link to={"/tasks/" + r.task_id}>
+                            {records.find((t) => t.id === r.task_id)?.title ??
+                              "任务"}{" "}
+                            ·{" "}
+                          </Link>
+                        )}
+                        {r.error}
+                      </p>
+                    ),
+                  )}
+                </div>
+              )}
             </form>
           )}
           {tab === "agents" && (

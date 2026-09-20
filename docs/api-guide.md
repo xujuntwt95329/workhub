@@ -130,6 +130,14 @@ outcome 支持 passed/failed/blocked/skipped/error。SHA 必须是实际执行�
 - GET `/api/assistant/runs/:id`、POST `/api/assistant/runs/:id/cancel`、GET `/api/tasks/:id/summary`。
 - 外部 Agent 调用助手需额外 `assistant:invoke` 权限，仍受任务范围限制。
 
+### 内置助手的范围、概览和调用计数
+
+- 问答传入 `taskId` 时只读取该任务的授权上下文；省略时读取授权工作空间。`summary: true` 必须同时提供任务 ID。对同一任务重复申请概览时，复用已有的排队或运行中作业，返回其 `id` 和 `status`。
+- 模型输入按记录 ID 和版本去重，工程数据部分最多 60,000 字符。优先提供任务目标、问题相关记录、关注项和阻塞，长正文及关联列表会节选。`counts` 和质量指标仍由完整授权范围计算，`coverage` 明确说明详情的省略数量；助手不得把未选入的记录解释为不存在。
+- GET `/api/tasks/:id/summary` 返回 `{data, latestRun, configured}`：`data` 是最近成功的概览（含 `stale`），无成功结果时为 `null`；`latestRun` 包含最近一次概览的 `id/status/error/created_at/finished_at`，无作业时为 `null`。新一轮生成失败不会删除上次成功结果。任务页面自动刷新排队、运行、成功和失败状态，支持手动生成与重试。
+- 模型设置的 `calls` 按 UTC 日期统计已尝试发送的模型请求，包含网络或提供方返回错误；上下文准备、权限检查、密钥解密失败及发出请求前的取消不消耗每日调用配额。该计数不是模型提供方的计费账单。
+- 升级后会一次性扣除旧版本中能确认因“范围内容过多”在本地拒绝的同日调用计数，不重置其他请求计数或 API Key。设置响应额外提供 `localFailuresExcluded` 和最近三次失败的 `recentFailures`，便于查看扣除次数和错误原因。
+
 ## MCP
 
 新增 `assign_todo_to_task` 工具（id、expectedVersion、taskId、idempotencyKey）；`get_quality_matrix` 返回 traceability。`workhub://schema` 当前 version 为 2。

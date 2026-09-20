@@ -591,9 +591,9 @@ export async function buildApp(db: Database, config: AppConfig) {
   app.post("/api/assistant/runs/:id/cancel", async (req) =>
     assistant.cancel(req.actor, id(req.params)),
   );
-  app.get("/api/tasks/:id/summary", async (req) => ({
-    data: await assistant.summary(req.actor, id(req.params)),
-  }));
+  app.get("/api/tasks/:id/summary", async (req) =>
+    assistant.summaryState(req.actor, id(req.params)),
+  );
   const root = config.staticRoot ?? resolve("dist");
   if (existsSync(root)) {
     await app.register(fastifyStatic, { root, wildcard: false });

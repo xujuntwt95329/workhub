@@ -4,6 +4,7 @@ import { Service, owner } from "../server/service";
 import { Assistant } from "../server/assistant";
 import { createAgentToken } from "../server/auth";
 import { clear, readyTask, agent } from "./fixtures";
+import { contextLimit } from "../server/assistant-context";
 let db: Database, s: Service, a: Assistant;
 const fetcher = vi.fn<typeof fetch>();
 const config = {
@@ -106,6 +107,7 @@ it("enforces agent invocation scopes and rechecks credential revocation before s
   await a.tick();
   expect((await a.get(owner, run.id)).error).toContain("撤销");
   expect(fetcher).not.toHaveBeenCalled();
+  expect(await a.publicConfig(owner)).toMatchObject({ calls: 0 });
   await expect(a.get(agent(["other"]), run.id)).rejects.toMatchObject({
     status: 403,
   });
@@ -216,6 +218,26 @@ it("enforces and resets a daily budget atomically", async () => {
   await a.tick();
   expect((await a.get(owner, three.id)).status).toBe("succeeded");
 });
+it("preserves a concurrent provider request count when saving model settings", async () => {
+  await a.configure(owner, config);
+  await a.enqueue(owner, "A real attempt");
+  const configRead = a.config.bind(a);
+  const spy = vi.spyOn(a, "config").mockImplementationOnce(async () => {
+    const before = await configRead();
+    await a.tick();
+    return before;
+  });
+  await a.configure(owner, {
+    ...config,
+    apiKey: undefined,
+    model: "new-model",
+  });
+  spy.mockRestore();
+  expect(await a.publicConfig(owner)).toMatchObject({
+    calls: 1,
+    model: "new-model",
+  });
+});
 it("recovers an expired lease once and fails repeatedly interrupted jobs", async () => {
   await a.configure(owner, config);
   const recover = await a.enqueue(owner, "Retry");
@@ -232,7 +254,7 @@ it("recovers an expired lease once and fails repeatedly interrupted jobs", async
   expect((await a.get(owner, recover.id)).status).toBe("succeeded");
   expect((await a.get(owner, exhausted.id)).status).toBe("failed");
 });
-it("bounds context size before a provider request and fails queued jobs when removed", async () => {
+it("compacts a large workspace instead of refusing it, and fails queued jobs when removed", async () => {
   await a.configure(owner, config);
   for (let i = 0; i < 8; i++)
     await s.create(owner, {
@@ -242,9 +264,204 @@ it("bounds context size before a provider request and fails queued jobs when rem
     });
   const run = await a.enqueue(owner, "Everything");
   await a.tick();
-  expect((await a.get(owner, run.id)).error).toContain("内容过多");
-  expect(fetcher).not.toHaveBeenCalled();
+  expect((await a.get(owner, run.id)).status).toBe("succeeded");
+  const data = JSON.parse(
+    JSON.parse(String(fetcher.mock.calls[0][1]?.body)).messages[1].content,
+  ).engineeringData;
+  expect(JSON.stringify(data).length).toBeLessThanOrEqual(contextLimit);
+  expect(data.coverage.shortenedRecords).toBe(8);
+  expect(data.counts.todo).toBe(8);
   const pending = await a.enqueue(owner, "Another");
   await a.remove(owner);
   expect((await a.get(owner, pending.id)).status).toBe("failed");
+});
+
+it("answers and summarizes a large selected task using deduplicated scoped records and exact quality totals", async () => {
+  await a.configure(owner, config);
+  const f = await readyTask(s);
+  await s.update(owner, f.requirement.id, 1, {
+    body: "文章搜索的详细要求。".repeat(1500),
+  });
+  for (let i = 0; i < 8; i++)
+    await s.create(owner, {
+      kind: "design",
+      taskId: f.task.id,
+      title: "Design section " + i,
+      body: "Details ".repeat(2400),
+    });
+  await s.create(owner, {
+    kind: "todo",
+    title: "Outside this task",
+    body: "NOT IN SELECTED SCOPE",
+  });
+  const original = await s.context(owner, f.task.id);
+  expect(JSON.stringify(original).length).toBeGreaterThan(140000);
+  const run = await a.enqueue(owner, "搜索有哪些质量缺口？", f.task.id);
+  await a.tick();
+  expect((await a.get(owner, run.id)).status).toBe("succeeded");
+  const packet = JSON.parse(
+    JSON.parse(String(fetcher.mock.calls[0][1]?.body)).messages[1].content,
+  ).engineeringData;
+  expect(packet.scope).toBe("task");
+  expect(packet.taskId).toBe(f.task.id);
+  expect(packet.report.metrics).toEqual(original.report!.metrics);
+  expect(packet.report.gapCount).toBe(original.report!.gaps.length);
+  expect(JSON.stringify(packet)).not.toContain("NOT IN SELECTED SCOPE");
+  expect(
+    packet.records.filter((r: any) => r.id === f.requirement.id),
+  ).toHaveLength(1);
+  const summary = await a.enqueue(owner, "Summarize", f.task.id, true);
+  expect((await a.summaryState(owner, f.task.id)).latestRun).toMatchObject({
+    id: summary.id,
+    status: "queued",
+  });
+  await a.tick();
+  expect((await a.summaryState(owner, f.task.id)).data).toMatchObject({
+    answer: "An answer",
+    stale: false,
+  });
+  expect(await a.publicConfig(owner)).toMatchObject({ calls: 2 });
+});
+
+it("separates adopted principle versions and excluded requirements from active counts", async () => {
+  const f = await readyTask(s);
+  const p = await s.create(owner, {
+    kind: "principle",
+    taskId: f.task.id,
+    title: "Validate inputs",
+    approve: true,
+  });
+  await s.adoptPrinciples(owner, f.task.id, f.task.version);
+  await s.update(owner, p.id, p.version, { body: "A newer proposal" });
+  const excluded = await s.create(owner, {
+    kind: "requirement",
+    taskId: f.task.id,
+    title: "Later iteration",
+  });
+  await s.disposeRequirement(
+    owner,
+    excluded.id,
+    excluded.version,
+    "reject",
+    "Future work",
+  );
+  await a.configure(owner, config);
+  await a.enqueue(owner, "原则与需求范围是什么？", f.task.id);
+  await a.tick();
+  const packet = JSON.parse(
+    JSON.parse(String(fetcher.mock.calls[0][1]?.body)).messages[1].content,
+  ).engineeringData;
+  expect(packet.counts.principle).toBe(1);
+  expect(packet.counts.requirement).toBe(1);
+  expect(packet.excludedRequirementCount).toBe(1);
+  expect(packet.records.filter((r: any) => r.id === p.id)).toHaveLength(2);
+  expect(
+    packet.records.find((r: any) => r.id === p.id && r.version === 1)
+      .adoptedPrincipleVersion,
+  ).toBe(true);
+});
+
+it("coalesces repeated summary requests and reports failures while retaining the previous successful summary", async () => {
+  const f = await readyTask(s);
+  await a.configure(owner, config);
+  await expect(
+    a.enqueue(owner, "Summary", undefined, true),
+  ).rejects.toMatchObject({ code: "TASK_REQUIRED" });
+  await expect(
+    a.enqueue(owner, "Question", f.project.id),
+  ).rejects.toMatchObject({ code: "INVALID_KIND" });
+  const [one, duplicate] = await Promise.all([
+    a.enqueue(owner, "Summarize", f.task.id, true),
+    a.enqueue(owner, "Summarize again", f.task.id, true),
+  ]);
+  expect(one.id).toBe(duplicate.id);
+  fetcher.mockImplementationOnce(async () => {
+    expect((await a.enqueue(owner, "While running", f.task.id, true)).id).toBe(
+      one.id,
+    );
+    expect((await a.summaryState(owner, f.task.id)).latestRun).toMatchObject({
+      status: "running",
+    });
+    return response("Previous useful summary");
+  });
+  await a.tick();
+  fetcher.mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+  const retry = await a.enqueue(owner, "Refresh", f.task.id, true);
+  await a.tick();
+  const state = await a.summaryState(owner, f.task.id);
+  expect(state.data).toMatchObject({ answer: "Previous useful summary" });
+  expect(state.latestRun).toMatchObject({
+    id: retry.id,
+    status: "failed",
+    error: "模型服务返回 503",
+  });
+  expect(await a.publicConfig(owner)).toMatchObject({
+    calls: 2,
+    recentFailures: [{ id: retry.id }],
+  });
+  await expect(
+    a.summaryState(agent(["other"]), f.task.id),
+  ).rejects.toMatchObject({ status: 403 });
+});
+
+it("deducts only proven legacy local context failures once without resetting real provider requests", async () => {
+  await a.configure(owner, config);
+  const current = await a.config();
+  await db.query("UPDATE settings SET value=$1 WHERE key='llm'", [
+    JSON.stringify({
+      ...current,
+      calls: 4,
+      callsDate: new Date().toISOString().slice(0, 10),
+      usageVersion: undefined,
+    }),
+  ]);
+  for (const [id, error, date] of [
+    ["local1", "此范围内容过多，请缩小到单个任务", new Date().toISOString()],
+    ["local2", "此范围内容过多，请缩小到单个任务", new Date().toISOString()],
+    ["provider", "模型服务返回 500", new Date().toISOString()],
+    ["yesterday", "此范围内容过多，请缩小到单个任务", "2020-01-01T00:00:00Z"],
+  ])
+    await db.query(
+      "INSERT INTO assistant_runs(id,question,status,error,finished_at) VALUES($1,'Question','failed',$2,$3)",
+      [id, error, date],
+    );
+  const [first, second] = await Promise.all([
+    a.publicConfig(owner),
+    a.publicConfig(owner),
+  ]);
+  expect(first).toMatchObject({ calls: 2, localFailuresExcluded: 2 });
+  expect(second).toMatchObject({ calls: 2, localFailuresExcluded: 2 });
+  const run = await a.enqueue(owner, "Real request");
+  await a.tick();
+  expect((await a.get(owner, run.id)).status).toBe("succeeded");
+  expect(await a.publicConfig(owner)).toMatchObject({
+    calls: 3,
+    localFailuresExcluded: 2,
+  });
+});
+
+it("does not spend budget when a job is cancelled during preparation or decryption fails", async () => {
+  await a.configure(owner, config);
+  const run = await a.enqueue(owner, "Cancel before sending");
+  const context = s.context.bind(s);
+  const spy = vi.spyOn(s, "context").mockImplementationOnce(async (...args) => {
+    await a.cancel(owner, run.id);
+    return context(...args);
+  });
+  await a.tick();
+  spy.mockRestore();
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await a.publicConfig(owner)).toMatchObject({ calls: 0 });
+  const failed = await a.enqueue(owner, "Bad encryption");
+  const wrongKey = new Assistant(
+    db,
+    s,
+    Buffer.alloc(32, 5),
+    ["https://model.example"],
+    fetcher,
+  );
+  await wrongKey.tick();
+  expect((await a.get(owner, failed.id)).status).toBe("failed");
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await a.publicConfig(owner)).toMatchObject({ calls: 0 });
 });

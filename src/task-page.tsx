@@ -41,6 +41,7 @@ import { useHub, entityPath } from "./state";
 import { Badge, Button, Empty, History, Markdown, Modal } from "./components";
 import { api, post, percent, formatDate } from "./lib/api";
 import { PageHeading } from "./pages";
+import { AssistantSummary } from "./assistant-summary";
 export function TaskPage() {
   const { id } = useParams(),
     { records, edit, act } = useHub();
@@ -48,8 +49,7 @@ export function TaskPage() {
   const tab = params.get("tab") ?? "overview";
   const task = records.find((r) => r.id === id && r.kind === "task");
   const [accepting, setAccepting] = useState(false),
-    [events, setEvents] = useState<any[]>([]),
-    [summary, setSummary] = useState<any>(null);
+    [events, setEvents] = useState<any[]>([]);
   const [principleReview, setPrincipleReview] = useState<Entity>(),
     [principleNote, setPrincipleNote] = useState("");
   useEffect(() => {
@@ -58,9 +58,6 @@ export function TaskPage() {
       .then((r) =>
         setEvents(r.items.filter((e: any) => e.task_id === id).reverse()),
       )
-      .catch(() => {});
-    api("/api/tasks/" + id + "/summary")
-      .then((r) => setSummary(r.data))
       .catch(() => {});
   }, [id, records]);
   if (!task)
@@ -255,56 +252,7 @@ export function TaskPage() {
                 </div>
               ))}
             </div>
-            <div className="panel detail-panel">
-              <div className="panel-heading">
-                <h2>
-                  <Sparkles size={18} />
-                  智能概览
-                </h2>
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    void act(
-                      () =>
-                        post("/api/assistant/runs", {
-                          question: "总结此任务",
-                          taskId: task.id,
-                          summary: true,
-                        }),
-                      "概览已加入生成队列",
-                    )
-                  }
-                >
-                  重新生成
-                </button>
-              </div>
-              {summary ? (
-                <>
-                  <div className="badge-row">
-                    <Badge value={summary.stale ? "stale" : "passed"}>
-                      {summary.stale ? "内容变化，待更新" : "与当前数据一致"}
-                    </Badge>
-                    <small className="muted">
-                      {formatDate(summary.finished_at ?? summary.created_at)}
-                    </small>
-                  </div>
-                  <Markdown
-                    text={String(summary.answer).replace(
-                      /\]\(workhub:[^)]+\)/g,
-                      "]",
-                    )}
-                  />
-                </>
-              ) : (
-                <div className="summary-placeholder">
-                  <Sparkles size={24} />
-                  <p>让助手帮你整理进展、阻塞和下一步。</p>
-                  <Link to="/settings" className="text-link">
-                    配置模型后启用 <ArrowUpRight size={14} />
-                  </Link>
-                </div>
-              )}
-            </div>
+            <AssistantSummary key={task.id} taskId={task.id} />
             <div className="panel detail-panel">
               <div className="panel-heading">
                 <h2>最近活动</h2>

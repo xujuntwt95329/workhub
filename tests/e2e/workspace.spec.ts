@@ -4,6 +4,83 @@ import { readFileSync } from "node:fs";
 import { unzipSync, strFromU8 } from "fflate";
 let cookies: Cookie[];
 
+test("answers a large selected task and shows summary success, failed refreshes and accurate request counts", async ({
+  page,
+}) => {
+  const create = async (data: object) => {
+    const res = await page.request.post("/api/v1/records", { data });
+    expect(res.ok(), await res.text()).toBe(true);
+    return (await res.json()).data;
+  };
+  const project = await create({ kind: "project", title: "助手回归验证" });
+  const task = await create({
+    kind: "task",
+    title: "知识库搜索方案梳理",
+    projectId: project.id,
+  });
+  for (let i = 0; i < 8; i++)
+    await create({
+      kind: "design",
+      taskId: task.id,
+      title: "搜索设计章节 " + i,
+      body: "文章搜索与筛选设计说明。".repeat(1400),
+    });
+  const configure = async (model: string) => {
+    const res = await page.request.put("/api/settings/llm", {
+      data: {
+        baseUrl: "http://127.0.0.1:3102/v1",
+        model,
+        apiKey: "local-fixture-key",
+        autoSummary: false,
+      },
+    });
+    expect(res.ok(), await res.text()).toBe(true);
+  };
+  await configure("fixture-model");
+  try {
+    await page.goto("/assistant");
+    await page.getByLabel("助手范围").selectOption(task.id);
+    await page.getByLabel("向助手提问").fill("请总结这个任务的设计方案");
+    await page.getByRole("button", { name: "发送问题" }).click();
+    await expect(page.locator(".assistant-message")).toContainText(
+      "已读取选定任务",
+    );
+    await expect(page.locator(".assistant-message")).toContainText("8 份设计");
+    await page.goto("/tasks/" + task.id);
+    const summary = page.getByLabel("任务智能概览");
+    await summary.getByRole("button", { name: "生成概览" }).click();
+    await expect(summary).toContainText("工程记录已整理");
+    await expect(summary).toContainText("与当前数据一致");
+    await configure("fixture-error");
+    await summary.getByRole("button", { name: "重新生成" }).click();
+    await expect(summary.getByRole("alert")).toContainText("模型服务返回 503");
+    await expect(summary).toContainText("工程记录已整理");
+    await page.screenshot({
+      path: "artifacts/assistant-summary-status.png",
+      fullPage: true,
+    });
+    await page.goto("/settings");
+    await expect(
+      page.getByText("今日已发出模型请求 3 / 50 次（含请求失败）"),
+    ).toBeVisible();
+    await expect(page.getByText("最近失败的运行")).toBeVisible();
+    await expect(page.locator(".assistant-failures")).toContainText(
+      "模型服务返回 503",
+    );
+    const scan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(
+      scan.violations.map((v) => ({
+        id: v.id,
+        nodes: v.nodes.map((n) => n.target),
+      })),
+    ).toEqual([]);
+  } finally {
+    await page.request.delete("/api/settings/llm");
+  }
+});
+
 test("persists focus marks across engineering lists and provides a searchable collection with source links", async ({
   page,
 }) => {

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS settings(key text primary key,value jsonb NOT NULL);
 CREATE TABLE IF NOT EXISTS idempotency(key text primary key, request_hash text NOT NULL, response jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS reports(id text primary key,task_id text NOT NULL REFERENCES records(id), data jsonb NOT NULL, kind text NOT NULL DEFAULT 'snapshot',created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS assistant_runs(id text primary key,task_id text,question text NOT NULL,status text NOT NULL,answer text, sources jsonb NOT NULL DEFAULT '[]', fingerprint text, error text, usage jsonb, generation integer NOT NULL DEFAULT 0, attempts integer NOT NULL DEFAULT 0, lease_until timestamptz, next_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), finished_at timestamptz);
+ALTER TABLE assistant_runs ADD COLUMN IF NOT EXISTS provider_started_at timestamptz;
 CREATE TABLE IF NOT EXISTS oauth_clients(id text primary key,name text NOT NULL,redirect_uris jsonb NOT NULL);
 CREATE TABLE IF NOT EXISTS oauth_codes(hash text primary key,client_id text NOT NULL,redirect_uri text NOT NULL,challenge text NOT NULL,resource text NOT NULL,expires_at timestamptz NOT NULL,used boolean NOT NULL DEFAULT false);
 CREATE TABLE IF NOT EXISTS oauth_refresh(hash text primary key,client_id text NOT NULL,token_id text NOT NULL REFERENCES tokens(id),expires_at timestamptz NOT NULL,used boolean NOT NULL DEFAULT false);
