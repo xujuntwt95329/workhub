@@ -459,6 +459,9 @@ test("groups requirements, traces a case and run in both directions, and preserv
     .getByLabel("标题", { exact: true })
     .fill("100 篇匹配文章各出现一次");
   await page.getByRole("button", { name: /^保存/ }).click();
+  await page
+    .getByRole("button", { name: "展开100 篇匹配文章各出现一次" })
+    .click();
   await page.getByRole("button", { name: "关联新用例", exact: true }).click();
   await page.getByLabel("标题", { exact: true }).fill("搜索回归用例");
   await page
@@ -535,6 +538,121 @@ test("groups requirements, traces a case and run in both directions, and preserv
   expect(graph.cases[0].runCount).toBe(1);
   expect(graph.cases[0].state).toBe("stale");
   expect(errors).toEqual([]);
+});
+
+test("separates acceptance criteria visually and supports keyboard collapse, trace links and mobile layouts", async ({
+  page,
+}) => {
+  const create = async (input: object) => {
+    const response = await page.request.post("/api/v1/records", {
+      data: input,
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    return (await response.json()).data;
+  };
+  const project = await create({ kind: "project", title: "示例知识库" }),
+    task = await create({
+      kind: "task",
+      title: "文章搜索与分类筛选",
+      projectId: project.id,
+    }),
+    requirement = await create({
+      kind: "requirement",
+      title: "读者可以通过关键词与分类找到相关文章",
+      taskId: task.id,
+      body: "支持按关键词搜索文章，并按分类缩小结果范围。\n\n搜索应保留当前筛选条件，明确展示结果总数，并在没有匹配文章时提供清晰的提示。",
+      approve: true,
+    }),
+    first = await create({
+      kind: "criterion",
+      title: "匹配文章完整展示，且没有重复结果",
+      taskId: task.id,
+      body: "1. 准备 100 篇包含共同关键词的文章。\n2. 输入关键词，结果总数应为 **100**。\n3. 翻页检查，每篇文章只出现一次。\n\n判定依据：搜索结果与预期文章集合一致。",
+      data: { requirementId: requirement.id },
+      approve: true,
+    }),
+    second = await create({
+      kind: "criterion",
+      title: "切换分类后从第一页展示结果",
+      taskId: task.id,
+      body: "在第二页切换分类后，页码重置为 1，并展示新分类的匹配文章。",
+      data: { requirementId: requirement.id },
+    });
+  await create({
+    kind: "check",
+    title: "文章搜索完整性检查",
+    taskId: task.id,
+    data: { criterionIds: [first.id] },
+  });
+  const url = "/tasks/" + task.id + "?tab=requirements";
+  await page.goto(url);
+  await page.getByRole("button", { name: "展开" + requirement.title }).click();
+  const firstRow = page.locator("#record-" + first.id),
+    secondRow = page.locator("#record-" + second.id);
+  await expect(firstRow.locator(".compact-detail")).toHaveCount(0);
+  await expect(secondRow.locator(".compact-detail")).toHaveCount(0);
+  expect((await secondRow.boundingBox())?.height).toBeLessThanOrEqual(44);
+
+  const toggle = firstRow.getByRole("button", { name: "展开" + first.title });
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(
+    firstRow.getByText("准备 100 篇包含共同关键词的文章。"),
+  ).toBeVisible();
+  await expect(
+    firstRow.getByRole("link", { name: /文章搜索完整性检查/ }),
+  ).toBeVisible();
+  await expect(secondRow.locator(".compact-detail")).toHaveCount(0);
+  await firstRow
+    .getByRole("button", { name: "收起" + first.title })
+    .press("Space");
+  await expect(firstRow.locator(".compact-detail")).toHaveCount(0);
+
+  // A traceability deep link must open both the requirement and its criterion.
+  await page.goto(url + "&focus=" + first.id);
+  await expect(
+    firstRow.getByRole("button", { name: "收起" + first.title }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    firstRow.getByText("准备 100 篇包含共同关键词的文章。"),
+  ).toBeVisible();
+  await expect(
+    secondRow.getByRole("button", { name: "展开" + second.title }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await page.screenshot({
+    path: "artifacts/acceptance-criteria-desktop.png",
+    fullPage: true,
+  });
+  const scan = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(
+    scan.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => n.target),
+    })),
+  ).toEqual([]);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.locator(".sidebar").evaluate((e) => e.getBoundingClientRect().right),
+    )
+    .toBeLessThanOrEqual(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await firstRow.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: "artifacts/acceptance-criteria-mobile.png",
+    fullPage: true,
+  });
+  await firstRow.getByRole("button", { name: "收起" + first.title }).click();
+  await expect(firstRow.locator(".compact-detail")).toHaveCount(0);
+  await secondRow.getByRole("button", { name: "展开" + second.title }).click();
+  await expect(secondRow.getByText(second.body)).toBeVisible();
 });
 
 test("keeps large requirement lists dense, paginated, searchable and accessible on desktop and mobile", async ({

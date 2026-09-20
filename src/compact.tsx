@@ -110,6 +110,7 @@ export function CompactRow({
   children,
   forceOpen,
   focused = false,
+  className = "",
 }: {
   record: Entity;
   meta?: ReactNode;
@@ -117,6 +118,7 @@ export function CompactRow({
   children?: ReactNode;
   forceOpen?: boolean;
   focused?: boolean;
+  className?: string;
 }) {
   const [params] = useSearchParams();
   const focus = focused || params.get("focus") === record.id;
@@ -137,7 +139,9 @@ export function CompactRow({
   return (
     <article
       id={"record-" + record.id}
-      className={"compact-record " + (focus ? "focused" : "")}
+      className={["compact-record", className, focus ? "focused" : ""]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="compact-row">
         <button

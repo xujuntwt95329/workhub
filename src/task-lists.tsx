@@ -416,46 +416,53 @@ export function RequirementsPanel({ task }: { task: Entity }) {
                           </p>
                         )}
                         <div className="criteria-list">
+                          {criteria.length > 0 && (
+                            <div className="criteria-heading">
+                              <span>验收标准</span>
+                              <span>{criteria.length} 条</span>
+                            </div>
+                          )}
                           {criteria.map((c) => {
                             const row = graph.rows.find(
                               (row) => row.criterion.id === c.id,
                             );
+                            const linkedCases = graph.cases.filter((tc) =>
+                              tc.links.some((l) => l.criterion.id === c.id),
+                            );
                             return (
-                              <div
+                              <CompactRow
                                 key={c.id}
-                                id={"record-" + c.id}
-                                className={
-                                  "criterion-detail " +
-                                  (focus?.id === c.id ? "focused" : "")
+                                record={c}
+                                className="criterion-detail"
+                                meta={
+                                  <>
+                                    <Confirmed record={c} />
+                                    <Badge
+                                      value={row?.state ?? "out_of_scope"}
+                                    />
+                                    <span className="muted small-text">
+                                      {linkedCases.length} 用例
+                                    </span>
+                                  </>
                                 }
-                              >
-                                <div className="compact-row">
-                                  <span className="mono">{c.key}</span>
-                                  <strong className="grow">{c.title}</strong>
-                                  <Confirmed record={c} />
-                                  <Badge value={row?.state ?? "out_of_scope"} />
+                                actions={
                                   <Actions
                                     record={c}
                                     readonly={readonly || !isCurrent(r)}
                                   />
-                                </div>
+                                }
+                              >
                                 {c.body && <Markdown text={c.body} />}
                                 <div className="trace-links">
-                                  {graph.cases
-                                    .filter((tc) =>
-                                      tc.links.some(
-                                        (l) => l.criterion.id === c.id,
-                                      ),
-                                    )
-                                    .map((tc) => (
-                                      <Link
-                                        key={tc.testCase.id}
-                                        to={entityPath(tc.testCase)}
-                                      >
-                                        {tc.testCase.key} · {tc.testCase.title}
-                                        <Badge value={tc.state} />
-                                      </Link>
-                                    ))}
+                                  {linkedCases.map((tc) => (
+                                    <Link
+                                      key={tc.testCase.id}
+                                      to={entityPath(tc.testCase)}
+                                    >
+                                      {tc.testCase.key} · {tc.testCase.title}
+                                      <Badge value={tc.state} />
+                                    </Link>
+                                  ))}
                                   {!readonly && isCurrent(r) && (
                                     <button
                                       className="text-button green-text"
@@ -472,7 +479,7 @@ export function RequirementsPanel({ task }: { task: Entity }) {
                                     </button>
                                   )}
                                 </div>
-                              </div>
+                              </CompactRow>
                             );
                           })}
                         </div>

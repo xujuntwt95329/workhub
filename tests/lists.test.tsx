@@ -103,6 +103,7 @@ it("groups requirements, separates rejected items, expands criteria and preselec
   expect(screen.queryByText(rejected.title)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "展开Article search" }));
   expect(screen.getByText(ac.title)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "展开" + ac.title }));
   fireEvent.click(screen.getByRole("button", { name: "关联新用例" }));
   expect(ctx.edit).toHaveBeenCalledWith({
     kind: "check",
@@ -115,11 +116,65 @@ it("groups requirements, separates rejected items, expands criteria and preselec
   fireEvent.click(screen.getByRole("button", { name: "恢复" }));
   expect(ctx.act).toHaveBeenCalled();
 });
+it("collapses criteria independently while preserving summary actions and the requirement body", () => {
+  const task = record("task"),
+    req = record("requirement", {
+      title: "Search articles",
+      body: "Readers can find relevant articles.",
+    }),
+    first = record("criterion", {
+      id: "first-criterion",
+      title: "Matching results",
+      body: "All matching articles appear exactly once.",
+      approvedVersion: null,
+      data: { requirementId: req.id },
+    }),
+    second = record("criterion", {
+      id: "second-criterion",
+      title: "Empty results",
+      body: "No matches displays a helpful suggestion.",
+      data: { requirementId: req.id },
+    }),
+    ctx = hub([task, req, first, second]);
+  render(
+    <MemoryRouter>
+      <HubContext.Provider value={ctx}>
+        <RequirementsPanel task={task} />
+      </HubContext.Provider>
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "展开" + req.title }));
+  for (const c of [first, second]) {
+    expect(
+      screen.getByRole("button", { name: "展开" + c.title }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(c.body)).toBeNull();
+  }
+  expect(screen.queryByRole("button", { name: "关联新用例" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "编辑" + first.title }));
+  expect(ctx.edit).toHaveBeenCalledWith({ kind: "criterion", entity: first });
+  fireEvent.click(screen.getByRole("button", { name: "确认" + first.title }));
+  expect(ctx.act).toHaveBeenCalled();
+  expect(screen.queryByText(first.body)).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "展开" + first.title }));
+  expect(screen.getByText(first.body)).toBeVisible();
+  expect(screen.queryByText(second.body)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "展开" + second.title }));
+  fireEvent.click(screen.getByRole("button", { name: "收起" + first.title }));
+  expect(screen.queryByText(first.body)).toBeNull();
+  expect(screen.getByText(second.body)).toBeVisible();
+  expect(screen.getByText(req.body)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "收起" + second.title }),
+  ).toHaveAttribute("aria-expanded", "true");
+});
 it("opens a deep-linked criterion inside its rejected requirement and navigates cases back to exact sources", async () => {
   const task = record("task", { data: { codeRef: sha } }),
     req = record("requirement", { status: "rejected", title: "Old scope" }),
     ac = record("criterion", {
       title: "Old criterion",
+      body: "Previously agreed acceptance details.",
       data: { requirementId: req.id },
     }),
     testCase = record("check", {
@@ -137,6 +192,10 @@ it("opens a deep-linked criterion inside its rejected requirement and navigates 
     </MemoryRouter>,
   );
   await waitFor(() => expect(screen.getByText(ac.title)).toBeVisible());
+  expect(screen.getByText(ac.body)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "收起" + ac.title }),
+  ).toHaveAttribute("aria-expanded", "true");
   expect(screen.getByRole("link", { name: /CHECK-001/ })).toHaveAttribute(
     "href",
     "/tasks/task?tab=tests&focus=check",
