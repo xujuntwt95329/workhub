@@ -140,6 +140,8 @@ outcome 支持 passed/failed/blocked/skipped/error。SHA 必须是实际执行�
 
 ## MCP
 
+设置页提供 [Claude](claude-plugin.md) 和 [Codex](codex-plugin.md) 插件。Owner 可通过 `GET /api/plugins/{claude|codex}` 获取元信息，通过 `POST /api/plugins/{claude|codex}/download` 下载按地址和认证方式生成的 ZIP；Codex 的请求体为 `{target:"codex", authentication:"oauth"|"token", baseUrl:"https://hub.example"}`。下载不包含凭证或工作数据。
+
 新增 `assign_todo_to_task` 工具（id、expectedVersion、taskId、idempotencyKey）；`get_quality_matrix` 返回 traceability。`workhub://schema` 当前 version 为 2。
 
 工具：get_task_context、list_records、create_record、update_record、transition_record、request_review、get_quality_matrix、convert_todo_to_task。资源：`workhub://guide` 与 `workhub://schema`。

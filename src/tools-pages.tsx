@@ -349,7 +349,7 @@ export function SettingsPage() {
           {[
             ["model", "模型与智能助手", Sparkles],
             ["agents", "Agent 接入", PlugZap],
-            ["plugins", "Claude 插件", Package],
+            ["plugins", "Agent 插件", Package],
             ["data", "数据与接口", Database],
           ].map(([value, label, Icon]) => {
             const I = Icon as typeof Sparkles;
@@ -543,7 +543,7 @@ export function SettingsPage() {
                 的客户端配置独立凭证。
                 <Link to="/settings?tab=plugins" className="green">
                   {" "}
-                  使用 Claude？下载配好 Skills 的插件 →
+                  使用 Claude 或 Codex？下载配好 Skills 的插件 →
                 </Link>
               </p>
               {tokens.map((t) => (

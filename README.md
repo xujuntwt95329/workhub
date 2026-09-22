@@ -10,7 +10,7 @@
 - 全局和任务内待办、归入既有任务、一键转新任务；任务内基本原则、采用的版本基线、必需原则的人工核对与依据记录。
 - 内置助手：全局/任务问答、来源引用、任务摘要、变更后自动合并生成、持久化队列、取消与每日调用上限。配置自己的兼容 Chat Completions 协议的模型服务。
 - 外部 Agent：REST API、JSON Schema、MCP；独立 Bearer Token 或 OAuth + PKCE；任务作用域、可撤销凭证、乐观锁和幂等请求。
-- Claude 插件：设置页下载 Claude Code / 桌面端 ZIP，内置 7 个工程协作 Skills、MCP 配置、当前接口契约及安装说明。
+- Agent 插件：设置页下载 Claude Code / Claude 桌面端 / Codex ZIP，内置 7 个工程协作 Skills、MCP 配置、当前接口契约及安装说明；Codex 包提供旧版 CLI 的兼容安装方式。
 - 单 Owner 登录、服务端权限、审计、密码哈希、API Key 加密、响应式 UI、本地中文字体。
 
 本轮任务归属、追溯口径与历史数据升级说明见 [docs/task-traceability.md](docs/task-traceability.md)。列表支持搜索、分页和展开详情。
@@ -114,7 +114,7 @@ npm run restore -- backups/before-upgrade.dump --confirm-replace
 
 ## Agent 接入
 
-使用 Claude 时，可在「设置与接入 → Claude 插件」下载并按页面指引安装。插件涵盖连接、待办与原则、需求、设计、开发、测试追溯和总结；Code 支持 OAuth 或任务 Token，桌面端使用 OAuth。详细安装、权限和验证范围见 [docs/claude-plugin.md](docs/claude-plugin.md)。
+使用 Claude 或 Codex 时，可在「设置与接入 → Agent 插件」选择客户端并下载。插件涵盖连接、待办与原则、需求、设计、开发、测试追溯和总结；Claude Code 和 Codex 支持 OAuth 或任务 Token，Claude 桌面端使用 OAuth。详细安装、权限和验证范围见 [Claude 插件说明](docs/claude-plugin.md) 与 [Codex 插件说明](docs/codex-plugin.md)。
 
 在「设置与接入 → Agent 接入」为每个 Agent 创建独立凭证，限定任务和读写能力。Token 只显示一次，服务端只保存哈希。
 

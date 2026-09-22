@@ -15,6 +15,7 @@ import { mcpRoutes, oauthRoutes } from "./mcp.js";
 import { seedWorkspace } from "./seed.js";
 import { recordContract } from "./contract.js";
 import { claudePluginRoutes } from "./claude-plugin.js";
+import { codexPluginRoutes } from "./codex-plugin.js";
 import {
   DomainError,
   authorize,
@@ -143,6 +144,7 @@ export async function buildApp(db: Database, config: AppConfig) {
   await oauthRoutes(app, db, config.publicUrl);
   await mcpRoutes(app, service, config.publicUrl);
   claudePluginRoutes(app, config.publicUrl);
+  codexPluginRoutes(app, config.publicUrl);
   app.get("/health", async () => {
     await db.query("SELECT 1");
     return { status: "ok" };

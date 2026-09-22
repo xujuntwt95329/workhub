@@ -47,17 +47,15 @@ it("cleans up the download element and object URL even if navigation fails", () 
 });
 
 it("downloads a ZIP with session authentication and uses only trusted filenames", async () => {
-  const fetcher = vi
-    .fn()
-    .mockResolvedValue(
-      new Response("PK-test", {
-        headers: {
-          "Content-Type": "application/zip",
-          "Content-Disposition":
-            'attachment; filename="workhub-claude-code-0.1.0.zip"',
-        },
-      }),
-    );
+  const fetcher = vi.fn().mockResolvedValue(
+    new Response("PK-test", {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition":
+          'attachment; filename="workhub-claude-code-0.1.0.zip"',
+      },
+    }),
+  );
   vi.stubGlobal("fetch", fetcher);
   const result = await fetchPlugin(input);
   expect(result.filename).toBe("workhub-claude-code-0.1.0.zip");
@@ -129,4 +127,37 @@ it("does not save a login page, unknown media type or empty successful response 
   await expect(fetchPlugin(input)).rejects.toThrow("服务器未返回插件 ZIP");
   await expect(fetchPlugin(input)).rejects.toThrow("服务器未返回插件 ZIP");
   await expect(fetchPlugin(input)).rejects.toThrow("下载内容为空");
+});
+
+it("uses the Codex download API and accepts only safe archive filenames", async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response("PK", {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition":
+            'attachment; filename="workhub-codex-0.1.0.zip"',
+        },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response("PK", {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition": 'attachment; filename="../../config.toml"',
+        },
+      }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  expect((await fetchPlugin({ ...input, target: "codex" })).filename).toBe(
+    "workhub-codex-0.1.0.zip",
+  );
+  expect(fetcher).toHaveBeenCalledWith(
+    "/api/plugins/codex/download",
+    expect.objectContaining({ credentials: "same-origin" }),
+  );
+  expect((await fetchPlugin({ ...input, target: "codex" })).filename).toBe(
+    "workhub-codex.zip",
+  );
 });

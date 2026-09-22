@@ -12,21 +12,19 @@ import {
   type PluginDownloadInput,
 } from "../shared/claude-plugin.js";
 import { recordContract } from "./contract.js";
+import { engineeringAssets } from "./plugin-assets.js";
 
 const root = new URL("../plugins/claude/workhub/", import.meta.url);
 const manifest = JSON.parse(
   readFileSync(new URL(".claude-plugin/plugin.json", root), "utf8"),
 ) as { name: string; version: string };
-// Explicit allowlist: downloading a plugin must never collect application data or secrets.
-const assetPaths = [
-  ".claude-plugin/plugin.json",
-  ...pluginSkills.map((s) => `skills/${s.name}/SKILL.md`),
-  "references/protocol.md",
-  "references/quality-evidence.md",
-];
-const assets = Object.fromEntries(
-  assetPaths.map((path) => [path, readFileSync(new URL(path, root), "utf8")]),
-);
+const assets = {
+  ...engineeringAssets,
+  ".claude-plugin/plugin.json": readFileSync(
+    new URL(".claude-plugin/plugin.json", root),
+    "utf8",
+  ),
+};
 const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
 
 export function pluginReadme(input: PluginDownloadInput) {
@@ -101,7 +99,9 @@ OAuth 部署要求服务器 PUBLIC_URL 与上述站点地址一致，并由反�
 }
 
 export function buildClaudePlugin(raw: unknown) {
-  const input = pluginDownloadSchema.parse(raw);
+  const input = pluginDownloadSchema
+    .refine((v) => v.target !== "codex", "请选择 Claude 客户端")
+    .parse(raw);
   const baseUrl = new URL(input.baseUrl).origin;
   const prefix =
     input.target === "code" ? "workhub-marketplace/plugins/workhub/" : "";

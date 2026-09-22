@@ -273,7 +273,7 @@ test("downloads Claude plugins with installation help on desktop and mobile", as
   await expect(
     page.getByRole("button", { name: "创建凭证", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Claude 插件", exact: true }).click();
+  await page.getByRole("button", { name: "Agent 插件", exact: true }).click();
   await page.getByRole("button", { name: /Claude 桌面端/ }).click();
   await expect(
     page.getByRole("button", { name: "下载插件 ZIP" }),
@@ -305,6 +305,66 @@ test("downloads Claude plugins with installation help on desktop and mobile", as
   await expect(
     page.getByRole("button", { name: "下载插件 ZIP" }),
   ).toBeVisible();
+});
+test("downloads the Codex plugin with working instructions and a compact mobile layout", async ({
+  page,
+}) => {
+  await page.goto("/settings?tab=plugins");
+  await page.getByRole("button", { name: /Codex/ }).click();
+  await expect(page.getByText(/WORKHUB × CODEX/)).toBeVisible();
+  await expect(page.getByText(/codex plugin marketplace add/)).toBeVisible();
+  await expect(page.getByText(/旧版 CLI/)).toBeVisible();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载插件 ZIP" }).click();
+  const file = await downloaded;
+  expect(file.suggestedFilename()).toMatch(/^workhub-codex-/);
+  const path = "artifacts/codex-plugin-browser.zip";
+  await file.saveAs(path);
+  const files = unzipSync(readFileSync(path));
+  const prefix = "workhub-codex/plugins/workhub/";
+  expect(files[prefix + ".codex-plugin/plugin.json"]).toBeDefined();
+  expect(
+    JSON.parse(strFromU8(files[prefix + ".mcp.json"])).mcpServers.workhub,
+  ).toEqual({ type: "http", url: "http://127.0.0.1:3101/mcp" });
+  expect(
+    files["workhub-codex/compat/skills/workhub-quality/SKILL.md"],
+  ).toBeDefined();
+  await page.screenshot({
+    path: "artifacts/codex-plugin-desktop.png",
+    fullPage: true,
+  });
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel("连接认证").selectOption("token");
+  await page.getByLabel("终端").selectOption("bash");
+  await expect(page.getByText(/export WORKHUB_TOKEN/)).toBeVisible();
+  const tokenDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载插件 ZIP" }).click();
+  await (
+    await tokenDownload
+  ).saveAs("artifacts/codex-plugin-browser-token.zip");
+  const tokenFiles = unzipSync(
+    readFileSync("artifacts/codex-plugin-browser-token.zip"),
+  );
+  expect(
+    JSON.parse(strFromU8(tokenFiles[prefix + ".mcp.json"])).mcpServers.workhub
+      .bearer_token_env_var,
+  ).toBe("WORKHUB_TOKEN");
+  await page.screenshot({
+    path: "artifacts/codex-plugin-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });
 test.beforeAll(async ({ request }) => {
   const initialized = (await (await request.get("/api/auth/status")).json())

@@ -2,7 +2,8 @@ import type { PluginDownloadInput } from "../../shared/claude-plugin";
 import { ApiError } from "./api";
 
 export async function fetchPlugin(input: PluginDownloadInput) {
-  const response = await fetch("/api/plugins/claude/download", {
+  const client = input.target === "codex" ? "codex" : "claude";
+  const response = await fetch(`/api/plugins/${client}/download`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
@@ -25,8 +26,8 @@ export async function fetchPlugin(input: PluginDownloadInput) {
     response.headers
       .get("Content-Disposition")
       ?.match(
-        /filename="(workhub-claude-(?:code|desktop)-[\d.]+\.zip)"/,
-      )?.[1] ?? "workhub-claude.zip";
+        /filename="(workhub-(?:claude-(?:code|desktop)|codex)-[\d.]+\.zip)"/,
+      )?.[1] ?? `workhub-${client}.zip`;
   const blob = await response.blob();
   if (blob.size === 0) throw new Error("下载内容为空，请重试");
   return { blob, filename };

@@ -1,0 +1,24 @@
+{
+  "name": "workhub",
+  "version": "0.1.0",
+  "description": "通过 MCP 管理 WorkHub 任务、需求、设计、开发进度与质量追溯。",
+  "author": {
+    "name": "WorkHub"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WorkHub",
+    "shortDescription": "让 Codex 连接你的工程工作空间。",
+    "longDescription": "提供连接、待办与原则、需求、设计、开发、质量追溯和总结七个工作流，使用当前工程契约回写可评审的内容与真实证据。",
+    "developerName": "WorkHub",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "brandColor": "#315C49",
+    "defaultPrompt": [
+      "连接 WorkHub，列出我可访问的任务。",
+      "整理指定任务的需求和验收标准，提交评审。",
+      "分析指定任务的测试覆盖与质量缺口。"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

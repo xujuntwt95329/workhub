@@ -2,6 +2,7 @@ import { beforeAll, afterAll, it, expect } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
 import { posix } from "node:path";
 import { buildClaudePlugin } from "../server/claude-plugin";
+import { buildCodexPlugin } from "../server/codex-plugin";
 import { pluginDownloadSchema, pluginSkills } from "../shared/claude-plugin";
 import { recordContract } from "../server/contract";
 import { openDatabase, type Database } from "../server/db";
@@ -163,78 +164,94 @@ afterAll(async () => {
   await db.close();
 });
 
-it("requires owner authentication for metadata and download, including write-enabled agents", async () => {
-  const { token } = await createAgentToken(
-    db,
-    "Plugin agent",
-    ["*"],
-    ["read", "write"],
-  );
-  for (const method of ["GET", "POST"] as const) {
-    const url = "/api/plugins/claude" + (method === "POST" ? "/download" : "");
-    const payload = method === "POST" ? input : undefined;
-    expect((await hub.app.inject({ method, url, payload })).statusCode).toBe(
-      401,
+it.each(["claude", "codex"])(
+  "requires owner authentication for %s metadata and download, including write-enabled agents",
+  async (client) => {
+    const { token } = await createAgentToken(
+      db,
+      "Plugin agent",
+      ["*"],
+      ["read", "write"],
     );
-    expect(
-      (
-        await hub.app.inject({
-          method,
-          url,
-          payload,
-          headers: { authorization: `Bearer ${token}` },
-        })
-      ).statusCode,
-    ).toBe(403);
-  }
-});
+    for (const method of ["GET", "POST"] as const) {
+      const url =
+        "/api/plugins/" + client + (method === "POST" ? "/download" : "");
+      const payload =
+        method === "POST"
+          ? { ...input, target: client === "codex" ? "codex" : "code" }
+          : undefined;
+      expect((await hub.app.inject({ method, url, payload })).statusCode).toBe(
+        401,
+      );
+      expect(
+        (
+          await hub.app.inject({
+            method,
+            url,
+            payload,
+            headers: { authorization: `Bearer ${token}` },
+          })
+        ).statusCode,
+      ).toBe(403);
+    }
+  },
+);
 
-it("returns configured URL instead of untrusted Host and does not put private workspace data in ZIPs", async () => {
-  const headers = { cookie, host: "untrusted.example" };
-  const metadata = await hub.app.inject({
-    method: "GET",
-    url: "/api/plugins/claude",
-    headers,
-  });
-  expect(metadata.statusCode).toBe(200);
-  expect(metadata.json()).toMatchObject({
-    publicUrl: "http://127.0.0.1:5173",
-    skills: pluginSkills,
-  });
-  const token = await createAgentToken(db, "Private token", ["*"], ["write"]);
-  const response = await hub.app.inject({
-    method: "POST",
-    url: "/api/plugins/claude/download",
-    headers,
-    payload: input,
-  });
-  expect(response.statusCode).toBe(200);
-  expect(response.headers["content-type"]).toBe("application/zip");
-  expect(response.headers["cache-control"]).toBe("private, no-store");
-  expect(response.headers["content-disposition"]).toContain("attachment;");
-  const artifact = buildClaudePlugin(input);
-  expect(response.rawPayload).toEqual(artifact.buffer);
-  expect(response.headers["x-content-sha256"]).toBe(artifact.sha256);
-  const allText = Object.values(unpack(response.rawPayload)).join("\n");
-  expect(allText).not.toContain(token.token);
-  expect(allText).not.toContain("plugin-owner-password");
-  expect(allText).not.toContain("Plugin owner");
-});
+it.each(["claude", "codex"])(
+  "returns configured URL instead of untrusted Host and excludes credentials from %s ZIPs",
+  async (client) => {
+    const headers = { cookie, host: "untrusted.example" };
+    const metadata = await hub.app.inject({
+      method: "GET",
+      url: "/api/plugins/" + client,
+      headers,
+    });
+    expect(metadata.statusCode).toBe(200);
+    expect(metadata.json()).toMatchObject({
+      publicUrl: "http://127.0.0.1:5173",
+      skills: pluginSkills,
+    });
+    const token = await createAgentToken(db, "Private token", ["*"], ["write"]);
+    const response = await hub.app.inject({
+      method: "POST",
+      url: "/api/plugins/" + client + "/download",
+      headers,
+      payload: { ...input, target: client === "codex" ? "codex" : "code" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/zip");
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.headers["content-disposition"]).toContain("attachment;");
+    const artifact =
+      client === "codex"
+        ? buildCodexPlugin({ ...input, target: "codex" })
+        : buildClaudePlugin(input);
+    expect(response.rawPayload).toEqual(artifact.buffer);
+    expect(response.headers["x-content-sha256"]).toBe(artifact.sha256);
+    const allText = Object.values(unpack(response.rawPayload)).join("\n");
+    expect(allText).not.toContain(token.token);
+    expect(allText).not.toContain("plugin-owner-password");
+    expect(allText).not.toContain("Plugin owner");
+  },
+);
 
-it("returns actionable validation errors and rejects cross-origin generation", async () => {
-  const invalid = await hub.app.inject({
-    method: "POST",
-    url: "/api/plugins/claude/download",
-    headers: { cookie },
-    payload: { ...input, target: "desktop", authentication: "token" },
-  });
-  expect(invalid.statusCode).toBe(422);
-  expect(invalid.json().error.message).toContain("OAuth");
-  const foreign = await hub.app.inject({
-    method: "POST",
-    url: "/api/plugins/claude/download",
-    headers: { cookie, origin: "https://foreign.example" },
-    payload: input,
-  });
-  expect(foreign.statusCode).toBe(403);
-});
+it.each(["claude", "codex"])(
+  "returns actionable validation errors and rejects cross-origin %s generation",
+  async (client) => {
+    const invalid = await hub.app.inject({
+      method: "POST",
+      url: "/api/plugins/" + client + "/download",
+      headers: { cookie },
+      payload: { ...input, target: "desktop", authentication: "token" },
+    });
+    expect(invalid.statusCode).toBe(422);
+    expect(invalid.json().error.message).toContain("OAuth");
+    const foreign = await hub.app.inject({
+      method: "POST",
+      url: "/api/plugins/" + client + "/download",
+      headers: { cookie, origin: "https://foreign.example" },
+      payload: input,
+    });
+    expect(foreign.statusCode).toBe(403);
+  },
+);

@@ -2,7 +2,7 @@
 
 日期：2026-09-20；插件版本：0.1.1。
 
-在 **设置与接入 → Claude 插件**（`/settings?tab=plugins`）选择客户端、WorkHub 地址和认证方式，再下载 ZIP。页面提供安装步骤、命令复制、权限说明和连接排查。安装包也包含相同用途的 README。
+在 **设置与接入 → Agent 插件**（`/settings?tab=plugins`）选择 Claude 客户端、WorkHub 地址和认证方式，再下载 ZIP。页面提供安装步骤、命令复制、权限说明和连接排查。安装包也包含相同用途的 README。Codex 用户请参见 [Codex 插件说明](codex-plugin.md)。
 
 ## 插件内容
 

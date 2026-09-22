@@ -40,7 +40,7 @@ export const pluginSkills = [
 
 export const pluginDownloadSchema = z
   .object({
-    target: z.enum(["code", "desktop"]),
+    target: z.enum(["code", "desktop", "codex"]),
     authentication: z.enum(["oauth", "token"]),
     baseUrl: z.string().trim().url("请填写完整的 WorkHub 地址").max(2048),
   })
@@ -69,12 +69,12 @@ export const pluginDownloadSchema = z
     }
     if (
       url.protocol !== "https:" &&
-      !(input.target === "code" && loopback && url.protocol === "http:")
+      !(input.target !== "desktop" && loopback && url.protocol === "http:")
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["baseUrl"],
-        message: "远程连接需要 HTTPS；仅 Claude Code 本机连接支持 HTTP",
+        message: "远程连接需要 HTTPS；仅本机客户端连接支持 HTTP",
       });
     }
     if (input.target === "desktop" && loopback) {

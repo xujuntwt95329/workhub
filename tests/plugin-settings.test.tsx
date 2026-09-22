@@ -142,3 +142,52 @@ it("retries metadata loading and reports clipboard failures without losing the i
   await waitFor(() => expect(notify).toHaveBeenCalledWith("安装命令已复制"));
   expect(writeText.mock.calls[0][0]).toContain("claude plugin marketplace add");
 });
+
+it("switches to Codex with its own metadata, authentication and install instructions while retaining the chosen URL", async () => {
+  const fetcher = vi.fn(async () => new Response(JSON.stringify(metadata)));
+  vi.stubGlobal("fetch", fetcher);
+  setup();
+  await screen.findByLabelText("WorkHub 访问地址");
+  fireEvent.change(screen.getByLabelText("WorkHub 访问地址"), {
+    target: { value: "https://my-hub.example" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /Codex/ }));
+  await screen.findByText(/WORKHUB × CODEX/);
+  expect(fetcher).toHaveBeenLastCalledWith(
+    "/api/plugins/codex",
+    expect.anything(),
+  );
+  expect(screen.getByLabelText("WorkHub 访问地址")).toHaveValue(
+    "https://my-hub.example",
+  );
+  expect(screen.getByText(/codex plugin marketplace add/)).toBeVisible();
+  expect(screen.getByText(/旧版 CLI/)).toBeVisible();
+  fireEvent.change(screen.getByLabelText("连接认证"), {
+    target: { value: "token" },
+  });
+  expect(screen.getByText(/Read-Host/).textContent).toMatch(/\ncodex$/);
+  fireEvent.change(screen.getByLabelText("终端"), {
+    target: { value: "bash" },
+  });
+  expect(screen.getByText(/read -rsp/).textContent).toMatch(/\ncodex$/);
+  vi.mocked(fetchPlugin).mockResolvedValueOnce({
+    blob: new Blob(["ZIP"]),
+    filename: "workhub-codex-0.1.0.zip",
+  });
+  fireEvent.click(screen.getByRole("button", { name: "下载插件 ZIP" }));
+  await waitFor(() =>
+    expect(fetchPlugin).toHaveBeenCalledWith({
+      target: "codex",
+      authentication: "token",
+      baseUrl: "https://my-hub.example",
+    }),
+  );
+  await waitFor(() => expect(savePlugin).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: /Claude 桌面端/ }));
+  await screen.findByText(/WORKHUB × CLAUDE/);
+  expect(screen.getByLabelText("连接认证")).toHaveValue("oauth");
+  expect(screen.getByLabelText("连接认证")).toBeDisabled();
+  expect(screen.getByLabelText("WorkHub 访问地址")).toHaveValue(
+    "https://my-hub.example",
+  );
+});
